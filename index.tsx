@@ -6,7 +6,7 @@ import {
   ShieldCheck, Shield, BarChart3, Download, Check, Ban, 
   ChevronRight, Users, TrendingUp, Calendar, Info, MapPin, Hash, Zap,
   Mail, Smartphone, IndianRupee, RefreshCw, Settings, UserPlus, MinusCircle, PlusCircle, LayoutDashboard,
-  FileDown, Square, CheckSquare, Layers, Award, KeyRound, ChevronDown, Gift, Copy, Search, Bot, Trash2
+  FileDown, Square, CheckSquare, Layers, Award, KeyRound, ChevronDown, Gift, Copy, Search, Bot, Trash2, Megaphone
 } from 'lucide-react';
 
 // --- AUTHORIZATION CONFIG ---
@@ -53,7 +53,8 @@ const App = () => {
     const [giftCardEmail, setGiftCardEmail] = useState(() => localStorage.getItem('giftCardEmail') || '');
     const [adCooldowns, setAdCooldowns] = useState<Record<string, number>>(() => JSON.parse(localStorage.getItem('adCooldowns') || '{}'));
     const [currentTime, setCurrentTime] = useState(Date.now());
-    const [taskClaimed, setTaskClaimed] = useState(() => localStorage.getItem('taskClaimed') === 'true');
+    const [task1Claimed, setTask1Claimed] = useState(() => localStorage.getItem('task1Claimed') === 'true');
+    const [task2Claimed, setTask2Claimed] = useState(() => localStorage.getItem('task2Claimed') === 'true');
 
     // --- WALLET TAB SPECIFIC ---
     const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -89,7 +90,8 @@ const App = () => {
         localStorage.setItem('exchangeRate', exchangeRate.toString());
         localStorage.setItem('usersList', JSON.stringify(usersList));
         localStorage.setItem('isAdminAuth', isPasscodeAuthenticated.toString());
-        localStorage.setItem('taskClaimed', taskClaimed.toString());
+        localStorage.setItem('task1Claimed', task1Claimed.toString());
+        localStorage.setItem('task2Claimed', task2Claimed.toString());
         
         localStorage.setItem('cfg_adReward', adReward.toString());
         localStorage.setItem('cfg_adCooldownSec', adCooldownSec.toString());
@@ -98,7 +100,7 @@ const App = () => {
         localStorage.setItem('cfg_upiMinInr', upiMinInr.toString());
         localStorage.setItem('cfg_gplayMinInr', gplayMinInr.toString());
         localStorage.setItem('cfg_gasUsdt', gasUsdt.toString());
-    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, tonMaxUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, taskClaimed]);
+    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, tonMaxUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed]);
 
     useEffect(() => {
         if (tg) {
@@ -252,17 +254,17 @@ const App = () => {
         }
     };
 
-    // --- TASK ACTION ---
-    const handleClaimTask = () => {
-        if (taskClaimed) return;
+    // --- TASK ACTIONS ---
+    const handleClaimTask1 = () => {
+        if (task1Claimed) return;
         if (tg) { tg.openTelegramLink('https://t.me/Rewardsoftware_bot'); } else { window.open('https://t.me/Rewardsoftware_bot', '_blank'); }
         const rewardAmount = 10.00;
         const now = Date.now();
         setBalance(prev => fromCents(toCents(prev) + toCents(rewardAmount)));
-        setTaskClaimed(true);
+        setTask1Claimed(true);
         setEarningsHistory(prev => [{ 
             id: Math.random().toString(36).substr(2, 9), 
-            source: "TASK: JOIN REWARD SOFTWARE", 
+            source: "TASK: JOIN BOT", 
             amount: rewardAmount, 
             timestamp: now 
         }, ...prev]);
@@ -272,6 +274,27 @@ const App = () => {
             totalEarned: (u.totalEarned || 0) + rewardAmount 
         } : u));
         showMessage("Success! $10 task claimed", "success");
+    };
+
+    const handleClaimTask2 = () => {
+        if (task2Claimed) return;
+        if (tg) { tg.openTelegramLink('https://t.me/Rewardsoftware_'); } else { window.open('https://t.me/Rewardsoftware_', '_blank'); }
+        const rewardAmount = 5.00;
+        const now = Date.now();
+        setBalance(prev => fromCents(toCents(prev) + toCents(rewardAmount)));
+        setTask2Claimed(true);
+        setEarningsHistory(prev => [{ 
+            id: Math.random().toString(36).substr(2, 9), 
+            source: "TASK: JOIN CHANNEL", 
+            amount: rewardAmount, 
+            timestamp: now 
+        }, ...prev]);
+        setUsersList(prev => prev.map(u => u.id === user.id ? { 
+            ...u, 
+            balance: fromCents(toCents(u.balance) + toCents(rewardAmount)), 
+            totalEarned: (u.totalEarned || 0) + rewardAmount 
+        } : u));
+        showMessage("Success! $5 task claimed", "success");
     };
 
     const handleWithdrawClick = () => {
@@ -615,29 +638,57 @@ const App = () => {
                             </div>
                         ))}
 
-                        {/* SUPER TASK CARD */}
-                        <div className="card p-6 rounded-[32px] bg-gradient-to-br from-indigo-600 to-purple-700 text-white mt-4 relative overflow-hidden shadow-2xl">
+                        <div className="h-4"></div>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-black px-2">Reward Tasks</h3>
+
+                        {/* TASK 1: BOT */}
+                        <div className="card p-6 rounded-[32px] bg-gradient-to-br from-indigo-600 to-purple-700 text-white relative overflow-hidden shadow-2xl">
                             <div className="relative z-10 flex flex-col gap-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-lg"><Gift size={24} className="text-white" /></div>
+                                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-lg"><Bot size={24} className="text-white" /></div>
                                     <div>
-                                        <h3 className="font-black text-lg uppercase tracking-tight">Super Task</h3>
-                                        <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Join Telegram Bot</p>
+                                        <h3 className="font-black text-lg uppercase tracking-tight">Main Bot Task</h3>
+                                        <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Join Software Bot</p>
                                     </div>
                                 </div>
-                                <p className="text-xs font-medium opacity-90 leading-relaxed">Join Reward Software Bot to unlock a one-time massive reward of $10.00!</p>
+                                <p className="text-xs font-medium opacity-90 leading-relaxed">Unlock $10.00 instantly by joining our official Reward Software Bot.</p>
                                 <div className="flex justify-between items-center mt-2">
                                     <div className="text-2xl font-black">+$10.00</div>
                                     <button 
-                                        onClick={handleClaimTask} 
-                                        disabled={taskClaimed} 
-                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${taskClaimed ? 'bg-green-500 text-white cursor-default' : 'bg-white text-indigo-600 hover:bg-gray-100'}`}
+                                        onClick={handleClaimTask1} 
+                                        disabled={task1Claimed} 
+                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${task1Claimed ? 'bg-green-500 text-white cursor-default' : 'bg-white text-indigo-600 hover:bg-gray-100'}`}
                                     >
-                                        {taskClaimed ? 'Claimed ✓' : 'Complete Task'}
+                                        {task1Claimed ? 'Claimed ✓' : 'Complete'}
                                     </button>
                                 </div>
                             </div>
                             <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                        </div>
+
+                        {/* TASK 2: CHANNEL */}
+                        <div className="card p-6 rounded-[32px] bg-gradient-to-br from-blue-500 to-cyan-600 text-white relative overflow-hidden shadow-2xl">
+                            <div className="relative z-10 flex flex-col gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-lg"><Megaphone size={24} className="text-white" /></div>
+                                    <div>
+                                        <h3 className="font-black text-lg uppercase tracking-tight">Channel Task</h3>
+                                        <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Join Telegram Channel</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs font-medium opacity-90 leading-relaxed">Get $5.00 extra by joining our official update channel to stay notified.</p>
+                                <div className="flex justify-between items-center mt-2">
+                                    <div className="text-2xl font-black">+$5.00</div>
+                                    <button 
+                                        onClick={handleClaimTask2} 
+                                        disabled={task2Claimed} 
+                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${task2Claimed ? 'bg-green-500 text-white cursor-default' : 'bg-white text-blue-600 hover:bg-gray-100'}`}
+                                    >
+                                        {task2Claimed ? 'Claimed ✓' : 'Complete'}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="absolute -left-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
                         </div>
                     </div>
                 )}
