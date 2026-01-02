@@ -6,7 +6,7 @@ import {
   ShieldCheck, Shield, BarChart3, Download, Check, Ban, 
   ChevronRight, Users, TrendingUp, Calendar, Info, MapPin, Hash, Zap,
   Mail, Smartphone, IndianRupee, RefreshCw, Settings, UserPlus, MinusCircle, PlusCircle, LayoutDashboard,
-  FileDown, Square, CheckSquare, Layers, Award, KeyRound, ChevronDown, Gift, Copy, Search, Bot
+  FileDown, Square, CheckSquare, Layers, Award, KeyRound, ChevronDown, Gift, Copy, Search, Bot, Trash2
 } from 'lucide-react';
 
 // --- AUTHORIZATION CONFIG ---
@@ -18,8 +18,7 @@ const toCents = (val: number | string) => Math.round(parseFloat(val.toString()) 
 const fromCents = (val: number) => val / 1000000;
 
 const App = () => {
-    // Explicitly using window.Telegram.WebApp to interact with Telegram
-    // We avoid using CloudStorage to maintain compatibility with version 6.0
+    // Note: Version-safe checks for Telegram SDK
     const tg = (window as any).Telegram?.WebApp;
 
     const [activeTab, setActiveTab] = useState('home');
@@ -64,9 +63,12 @@ const App = () => {
     // --- ADMIN SPECIFIC STATE ---
     const [usersList, setUsersList] = useState<any[]>(() => {
         const saved = localStorage.getItem('usersList');
+        // Providing more mock users to show "Unlimited" potential
         return saved ? JSON.parse(saved) : [
-            { id: 1001, name: 'Alice', balance: 0.05, totalEarned: 0.12, joined: Date.now() - 86400000 * 5 },
-            { id: 1002, name: 'Bob', balance: 0.01, totalEarned: 0.04, joined: Date.now() - 86400000 * 2 }
+            { id: 1001, name: 'Alice', balance: 5.05, totalEarned: 12.12, joined: Date.now() - 86400000 * 5 },
+            { id: 1002, name: 'Bob', balance: 1.01, totalEarned: 4.04, joined: Date.now() - 86400000 * 2 },
+            { id: 1003, name: 'Charlie', balance: 2.50, totalEarned: 10.00, joined: Date.now() - 86400000 * 10 },
+            { id: 1004, name: 'David', balance: 0.80, totalEarned: 2.20, joined: Date.now() - 86400000 * 1 }
         ];
     });
     
@@ -143,7 +145,8 @@ const App = () => {
         const totalPaid = withdrawalHistory.filter((w: any) => w.status === 'PAID').reduce((acc, w) => acc + w.amount, 0);
         const activeUsersCount = usersList.length;
         const pendingCount = withdrawalHistory.filter((w: any) => w.status === 'PENDING').length;
-        return { totalSystemBalance, totalPending, totalPaid, activeUsersCount, pendingCount };
+        const totalRequestCount = withdrawalHistory.length;
+        return { totalSystemBalance, totalPending, totalPaid, activeUsersCount, pendingCount, totalRequestCount };
     }, [usersList, withdrawalHistory]);
 
     const filteredWithdrawalsForAdmin = useMemo(() => {
@@ -164,12 +167,10 @@ const App = () => {
     const handleHeaderClick = () => {
         const newCount = headerClicks + 1;
         setHeaderClicks(newCount);
-        // Requirement: 30 clicks to trigger passcode modal
         if (newCount === 30) {
             setHeaderClicks(0);
             setShowPasscodeModal(true);
         }
-        // Auto-reset click count if user stops clicking for a few seconds
         setTimeout(() => setHeaderClicks(0), 5000);
     };
 
@@ -190,6 +191,11 @@ const App = () => {
         setUsersList(prev => prev.map(u => u.id === userId ? { ...u, balance: Math.max(0, fromCents(toCents(u.balance) + toCents(delta))) } : u));
         if (userId === user.id) setBalance(prev => Math.max(0, fromCents(toCents(prev) + toCents(delta))));
         showMessage(`Balance adjusted by $${delta}`, 'info');
+    };
+
+    const deleteWithdrawal = (id: string) => {
+        setWithdrawalHistory(prev => prev.filter(w => w.id !== id));
+        showMessage('Request removed', 'info');
     };
 
     const downloadWithdrawalCSV = () => {
@@ -286,13 +292,14 @@ const App = () => {
             ...u, 
             balance: fromCents(toCents(u.balance) + toCents(rewardAmount)), 
             totalEarned: (u.totalEarned || 0) + rewardAmount 
+            // Note: In local storage, other users aren't globally tracked unless shared, but usersList keeps local history
         } : u));
         showMessage("Success! $10 task claimed", "success");
     };
 
     const handleWithdrawClick = () => {
         const addr = withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail;
-        if (!addr) return showMessage(`Enter your ${withdrawNetwork === 'TON' ? 'USDT Ton' : withdrawNetwork === 'UPI' ? 'UPI' : 'Google Play Giftcard'} detail`, 'error');
+        if (!addr) return showMessage(`Enter your payout detail`, 'error');
         const inputAmount = parseFloat(withdrawAmount);
         if (!withdrawAmount || isNaN(inputAmount) || inputAmount <= 0) return showMessage('Invalid amount', 'error');
 
@@ -335,7 +342,7 @@ const App = () => {
                 netPayout: netUsdt,
                 netPayoutINR: netInr,
                 gasFee: currentGas,
-                network: getNetworkDisplayName(withdrawNetwork), // Store display name
+                network: getNetworkDisplayName(withdrawNetwork),
                 status: 'PENDING',
                 address: withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail,
                 user_name: user.first_name,
@@ -420,7 +427,6 @@ const App = () => {
                             <button onClick={() => setActiveTab('ads')} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><ChevronRight size={18} /></button>
                         </div>
 
-                        {/* Card style "Earn More" section pointing to Bot */}
                         <div className="card p-5 rounded-3xl flex items-center gap-4 border-l-4 border-l-indigo-600 shadow-sm">
                             <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm"><Bot size={22} /></div>
                             <div className="flex-1">
@@ -453,7 +459,7 @@ const App = () => {
                             <button onClick={() => setIsAdminView(false)} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><X size={20} /></button>
                         </header>
 
-                        <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+                        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
                             {(['dashboard', 'withdrawals', 'users', 'settings'] as const).map(tab => (
                                 <button key={tab} onClick={() => setAdminSubTab(tab)} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase whitespace-nowrap transition-all ${adminSubTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 text-gray-400'}`}>
                                     {tab === 'dashboard' && <LayoutDashboard size={14}/>}
@@ -489,7 +495,10 @@ const App = () => {
                                         <p className="text-[10px] font-black text-amber-700 uppercase">Pending Requests</p>
                                         <p className="text-2xl font-black text-amber-900">{adminAnalytics.pendingCount}</p>
                                     </div>
-                                    <Clock className="text-amber-500" size={32} />
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black text-amber-700 uppercase">Total Tracked</p>
+                                        <p className="text-2xl font-black text-amber-900">{adminAnalytics.totalRequestCount}</p>
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-col gap-4">
@@ -503,62 +512,67 @@ const App = () => {
                                     </div>
                                 </div>
 
-                                {filteredWithdrawalsForAdmin.length === 0 ? (
-                                    <div className="text-center py-10">
-                                        <Search size={40} className="mx-auto text-gray-200 mb-4" />
-                                        <p className="text-gray-400 text-xs font-bold">No requests found</p>
-                                    </div>
-                                ) : (
-                                    filteredWithdrawalsForAdmin.map((w: any) => (
-                                        <div key={w.id} className={`card p-5 rounded-[32px] border-l-4 ${w.status === 'PAID' ? 'border-l-green-500' : w.status === 'REJECTED' ? 'border-l-red-500' : 'border-l-yellow-500'}`}>
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                    <p className="text-sm font-black text-black">{w.user_name} <span className="text-gray-300 text-[10px]">@{w.user_id}</span></p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-lg bg-gray-100 text-gray-600">{w.network}</span>
-                                                        <p className="text-[9px] text-gray-400 font-bold">{new Date(w.timestamp).toLocaleString()}</p>
+                                <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-4 hide-scrollbar">
+                                    {filteredWithdrawalsForAdmin.length === 0 ? (
+                                        <div className="text-center py-10">
+                                            <Search size={40} className="mx-auto text-gray-200 mb-4" />
+                                            <p className="text-gray-400 text-xs font-bold">No requests found</p>
+                                        </div>
+                                    ) : (
+                                        filteredWithdrawalsForAdmin.map((w: any) => (
+                                            <div key={w.id} className={`card p-5 rounded-[32px] border-l-4 ${w.status === 'PAID' ? 'border-l-green-500' : w.status === 'REJECTED' ? 'border-l-red-500' : 'border-l-yellow-500'}`}>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <p className="text-sm font-black text-black">{w.user_name} <span className="text-gray-300 text-[10px]">@{w.user_id}</span></p>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-lg bg-gray-100 text-gray-600">{w.network}</span>
+                                                            <p className="text-[9px] text-gray-400 font-bold">{new Date(w.timestamp).toLocaleString()}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-black text-black">${w.amount.toFixed(4)}</p>
+                                                        <p className="text-[10px] font-black text-green-600">{w.netPayoutINR ? `₹${w.netPayoutINR.toFixed(2)}` : `$${w.netPayout.toFixed(4)}`}</p>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-lg font-black text-black">${w.amount.toFixed(4)}</p>
-                                                    <p className="text-[10px] font-black text-green-600">{w.netPayoutINR ? `₹${w.netPayoutINR.toFixed(2)}` : `$${w.netPayout.toFixed(4)}`}</p>
+                                                
+                                                <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-2xl mb-4 group active:bg-gray-100 transition-all" onClick={() => copyToClipboard(w.address)}>
+                                                    <div className="flex-1 overflow-hidden">
+                                                        <p className="text-[10px] font-black text-gray-400 uppercase mb-0.5">Target Address</p>
+                                                        <p className="text-[10px] font-mono break-all text-black">{w.address}</p>
+                                                    </div>
+                                                    <Copy size={14} className="text-gray-400" />
                                                 </div>
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-2xl mb-4 group active:bg-gray-100 transition-all" onClick={() => copyToClipboard(w.address)}>
-                                                <div className="flex-1 overflow-hidden">
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase mb-0.5">Target Address</p>
-                                                    <p className="text-[10px] font-mono break-all text-black">{w.address}</p>
-                                                </div>
-                                                <Copy size={14} className="text-gray-400" />
-                                            </div>
 
-                                            {w.status === 'PENDING' && (
                                                 <div className="flex gap-3">
-                                                    <button onClick={() => updateWithdrawalStatus([w.id], 'PAID')} className="flex-1 py-3 rounded-2xl bg-green-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-lg shadow-green-200">Approve</button>
-                                                    <button onClick={() => updateWithdrawalStatus([w.id], 'REJECTED')} className="flex-1 py-3 rounded-2xl bg-red-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-lg shadow-red-200">Reject</button>
+                                                    {w.status === 'PENDING' && (
+                                                        <>
+                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'PAID')} className="flex-1 py-3 rounded-2xl bg-green-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-lg shadow-green-200">Approve</button>
+                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'REJECTED')} className="flex-1 py-3 rounded-2xl bg-red-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-lg shadow-red-200">Reject</button>
+                                                        </>
+                                                    )}
+                                                    <button onClick={() => deleteWithdrawal(w.id)} className="w-12 py-3 rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center active:bg-red-50 active:text-red-500 transition-colors"><Trash2 size={16} /></button>
                                                 </div>
-                                            )}
-                                        </div>
-                                    ))
-                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         )}
 
                         {adminSubTab === 'users' && (
-                            <div className="space-y-3 animate-fadeIn">
+                            <div className="space-y-3 animate-fadeIn max-h-[70vh] overflow-y-auto pr-1 hide-scrollbar">
                                 {usersList.map((u: any) => (
                                     <div key={u.id} className="card p-4 rounded-[28px] flex items-center justify-between border-l-4 border-l-blue-600">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black">{u.name ? u.name[0] : '?'}</div>
+                                            <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black uppercase">{u.name ? u.name[0] : '?'}</div>
                                             <div>
                                                 <p className="text-sm font-black text-black">{u.name}</p>
-                                                <p className="text-[9px] text-gray-400 font-bold">BAL: ${u.balance.toFixed(4)} | EARN: ${(u.totalEarned || 0).toFixed(2)}</p>
+                                                <p className="text-[9px] text-gray-400 font-bold tracking-tight">BAL: ${u.balance.toFixed(4)} | TOTAL: ${(u.totalEarned || 0).toFixed(2)}</p>
                                             </div>
                                         </div>
                                         <div className="flex gap-1.5">
-                                            <button onClick={() => adjustUserBalance(u.id, 0.10)} className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center active:scale-90"><PlusCircle size={16}/></button>
-                                            <button onClick={() => adjustUserBalance(u.id, -0.10)} className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center active:scale-90"><MinusCircle size={16}/></button>
+                                            <button onClick={() => adjustUserBalance(u.id, 0.50)} className="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center active:scale-90"><PlusCircle size={16}/></button>
+                                            <button onClick={() => adjustUserBalance(u.id, -0.50)} className="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center active:scale-90"><MinusCircle size={16}/></button>
                                         </div>
                                     </div>
                                 ))}
@@ -656,7 +670,7 @@ const App = () => {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{withdrawNetwork === 'TON' ? 'Enter USDT Ton address' : withdrawNetwork === 'UPI' ? 'Enter UPI number' : 'Enter Email Id'}</label>
-                                <input type="text" placeholder={withdrawNetwork === 'TON' ? 'Enter USDT Ton address' : withdrawNetwork === 'UPI' ? 'Enter UPI number' : 'Enter Email Id'} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:ring-2 focus:ring-black/5 transition-all" value={withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail} onChange={(e) => { if(withdrawNetwork === 'TON') setTonAddress(e.target.value); else if(withdrawNetwork === 'UPI') setUpiId(e.target.value); else setGiftCardEmail(e.target.value); }} />
+                                <input type="text" placeholder={withdrawNetwork === 'TON' ? 'Address' : withdrawNetwork === 'UPI' ? 'UPI ID' : 'Email'} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:ring-2 focus:ring-black/5 transition-all" value={withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail} onChange={(e) => { if(withdrawNetwork === 'TON') setTonAddress(e.target.value); else if(withdrawNetwork === 'UPI') setUpiId(e.target.value); else setGiftCardEmail(e.target.value); }} />
                             </div>
                             <div className="flex flex-col gap-2">
                                 <div className="flex justify-between items-center"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Amount ({withdrawNetwork === 'TON' ? 'USDT' : 'INR'})</label><span className="text-[9px] text-gray-400 font-bold">Fee: {withdrawNetwork === 'TON' ? `$${gasUsdt}` : '₹0.00'}</span></div>
@@ -682,7 +696,7 @@ const App = () => {
                             <button onClick={() => setHistorySubTab('earnings')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${historySubTab === 'earnings' ? 'bg-white text-black shadow-sm' : 'text-gray-400'}`}>Earnings</button>
                             <button onClick={() => setHistorySubTab('withdrawals')} className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${historySubTab === 'withdrawals' ? 'bg-white text-black shadow-sm' : 'text-gray-400'}`}>Payouts</button>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-3 max-h-[70vh] overflow-y-auto hide-scrollbar">
                             {(historySubTab === 'earnings' ? earningsHistory : withdrawalHistory).map((item: any) => (
                                 <div key={item.id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm border-l-4 border-l-green-600">
                                     <div className="flex items-center gap-4">
@@ -729,7 +743,7 @@ const App = () => {
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-black text-gray-400 uppercase">Network</span>
                                 <span className="text-[10px] font-black text-black uppercase bg-gray-100 px-2 py-1 rounded-lg">
-                                    {withdrawNetwork === 'TON' ? 'USDT Ton' : withdrawNetwork === 'UPI' ? 'UPI (INR)' : 'Google Play Giftcard (INR)'}
+                                    {withdrawNetwork === 'TON' ? 'USDT Ton' : withdrawNetwork === 'UPI' ? 'UPI (INR)' : 'Giftcard'}
                                 </span>
                             </div>
                             <div className="flex flex-col gap-1.5">
@@ -739,14 +753,6 @@ const App = () => {
                                         {withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail}
                                     </p>
                                 </div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Gross Amount</span>
-                                <span className="text-sm font-black text-black">{withdrawAmount} {withdrawNetwork === 'TON' ? 'USDT' : 'INR'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Fee</span>
-                                <span className="text-[10px] font-black text-red-500">{withdrawNetwork === 'TON' ? `-$${gasUsdt}` : '₹0.00'}</span>
                             </div>
                             <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100">
                                 <span className="text-[10px] font-black text-green-700 uppercase">Net Payout</span>
