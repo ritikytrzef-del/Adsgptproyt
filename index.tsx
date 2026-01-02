@@ -63,11 +63,8 @@ const App = () => {
     const [usersList, setUsersList] = useState<any[]>(() => {
         const saved = localStorage.getItem('usersList');
         return saved ? JSON.parse(saved) : [
-            { id: 1001, name: 'Alice', balance: 5.05, totalEarned: 12.12, joined: Date.now() - 86400000 * 5 },
-            { id: 1002, name: 'Bob', balance: 1.01, totalEarned: 4.04, joined: Date.now() - 86400000 * 2 },
-            { id: 1003, name: 'Charlie', balance: 2.50, totalEarned: 10.00, joined: Date.now() - 86400000 * 10 },
-            { id: 1004, name: 'David', balance: 0.80, totalEarned: 2.20, joined: Date.now() - 86400000 * 1 },
-            { id: 1005, name: 'Eve', balance: 15.00, totalEarned: 25.00, joined: Date.now() - 86400000 * 15 }
+            { id: 1001, name: 'Alice', username: 'alice_crypto', balance: 5.05, joined: Date.now() - 86400000 * 5 },
+            { id: 1002, name: 'Bob', username: 'bob_payout', balance: 1.01, joined: Date.now() - 86400000 * 2 }
         ];
     });
     
@@ -111,9 +108,13 @@ const App = () => {
                 const u = tg.initDataUnsafe.user;
                 setUser(u);
                 setUsersList(prev => {
-                    const existing = prev.find(item => item.id === u.id);
-                    if (existing) return prev;
-                    return [...prev, { id: u.id, name: u.first_name, balance: balance, totalEarned: 0, joined: Date.now() }];
+                    const existingIdx = prev.findIndex(item => item.id === u.id);
+                    if (existingIdx !== -1) {
+                        const updated = [...prev];
+                        updated[existingIdx] = { ...updated[existingIdx], username: u.username || '', name: u.first_name };
+                        return updated;
+                    }
+                    return [...prev, { id: u.id, name: u.first_name, username: u.username || '', balance: balance, totalEarned: 0, joined: Date.now() }];
                 });
             }
         }
@@ -251,6 +252,7 @@ const App = () => {
         }
     };
 
+    // --- TASK ACTION ---
     const handleClaimTask = () => {
         if (taskClaimed) return;
         if (tg) { tg.openTelegramLink('https://t.me/Rewardsoftware_bot'); } else { window.open('https://t.me/Rewardsoftware_bot', '_blank'); }
@@ -482,7 +484,7 @@ const App = () => {
                                     ))}
                                 </div>
 
-                                <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-1">
                                     {filteredWithdrawalsForAdmin.length === 0 ? (
                                         <div className="text-center py-20 bg-gray-50 rounded-[40px] border border-dashed">
                                             <Search size={40} className="mx-auto text-gray-200 mb-4" />
@@ -531,7 +533,7 @@ const App = () => {
                         )}
 
                         {adminSubTab === 'users' && (
-                            <div className="space-y-3 animate-fadeIn">
+                            <div className="space-y-3 animate-fadeIn max-h-[70vh] overflow-y-auto pr-1">
                                 <div className="px-2 flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-black text-black">Member List ({adminAnalytics.activeUsersCount})</h3>
                                     <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl uppercase">Unlimited View</div>
@@ -541,8 +543,9 @@ const App = () => {
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black uppercase shadow-inner text-sm">{u.name ? u.name[0] : '?'}</div>
                                             <div>
-                                                <p className="text-sm font-black text-black">{u.name}</p>
-                                                <p className="text-[9px] text-gray-400 font-bold tracking-tight">ID: {u.id} | BAL: ${u.balance.toFixed(4)}</p>
+                                                <p className="text-sm font-black text-black leading-none">{u.name}</p>
+                                                <p className="text-[10px] text-blue-600 font-bold mt-0.5 tracking-tight">@{u.username || 'no_username'}</p>
+                                                <p className="text-[8px] text-gray-400 font-bold tracking-tight uppercase mt-1">ID: {u.id} | BAL: ${u.balance.toFixed(4)}</p>
                                             </div>
                                         </div>
                                         <div className="flex gap-1.5">
@@ -597,6 +600,8 @@ const App = () => {
                     <div className="flex flex-col gap-4 animate-fadeIn">
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Ad Stations</h2></header>
                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Watch to earn USDT instantly</p>
+                        
+                        {/* AD STATIONS */}
                         {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                             <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform">
                                 <div className="flex items-center gap-4">
@@ -609,6 +614,31 @@ const App = () => {
                                 <button disabled={adCooldowns[id] > currentTime} onClick={() => handleWatchAd(id)} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${adCooldowns[id] > currentTime ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-black text-white shadow-xl hover:bg-gray-900 active:scale-95'}`}>{getCooldownText(id)}</button>
                             </div>
                         ))}
+
+                        {/* SUPER TASK CARD */}
+                        <div className="card p-6 rounded-[32px] bg-gradient-to-br from-indigo-600 to-purple-700 text-white mt-4 relative overflow-hidden shadow-2xl">
+                            <div className="relative z-10 flex flex-col gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-lg"><Gift size={24} className="text-white" /></div>
+                                    <div>
+                                        <h3 className="font-black text-lg uppercase tracking-tight">Super Task</h3>
+                                        <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Join Telegram Bot</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs font-medium opacity-90 leading-relaxed">Join Reward Software Bot to unlock a one-time massive reward of $10.00!</p>
+                                <div className="flex justify-between items-center mt-2">
+                                    <div className="text-2xl font-black">+$10.00</div>
+                                    <button 
+                                        onClick={handleClaimTask} 
+                                        disabled={taskClaimed} 
+                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${taskClaimed ? 'bg-green-500 text-white cursor-default' : 'bg-white text-indigo-600 hover:bg-gray-100'}`}
+                                    >
+                                        {taskClaimed ? 'Claimed ✓' : 'Complete Task'}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                        </div>
                     </div>
                 )}
 
@@ -627,13 +657,15 @@ const App = () => {
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Select Method</label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {([['TON', 'TON'], ['GIFT_CARD', 'Giftcard'], ['UPI', 'UPI']] as const).map(([net, label]) => (
-                                        <button key={net} onClick={() => { setWithdrawNetwork(net as any); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === net ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>{label}</button>
-                                    ))}
+                                    <button onClick={() => { setWithdrawNetwork('TON'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'TON' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>USDT Ton</button>
+                                    <button onClick={() => { setWithdrawNetwork('GIFT_CARD'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'GIFT_CARD' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Google Play Giftcard</button>
+                                    <button onClick={() => { setWithdrawNetwork('UPI'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'UPI' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>UPI</button>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{withdrawNetwork === 'TON' ? 'Enter USDT Ton address' : withdrawNetwork === 'UPI' ? 'Enter UPI number' : 'Enter Email Id'}</label>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    {withdrawNetwork === 'TON' ? 'Enter USDT Ton address' : withdrawNetwork === 'UPI' ? 'Enter UPI number' : 'Enter Email Id'}
+                                </label>
                                 <input type="text" placeholder="Detail here" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:ring-2 focus:ring-black/5" value={withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail} onChange={(e) => { if(withdrawNetwork === 'TON') setTonAddress(e.target.value); else if(withdrawNetwork === 'UPI') setUpiId(e.target.value); else setGiftCardEmail(e.target.value); }} />
                             </div>
                             <div className="flex flex-col gap-2">
@@ -693,7 +725,30 @@ const App = () => {
                             <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center text-white border border-white/20 mb-3"><ShieldCheck size={32} /></div>
                             <h3 className="text-xl font-black text-white tracking-tighter uppercase">Confirm Payout</h3>
                         </div>
+                        
                         <div className="px-8 py-6 flex flex-col gap-4 border-b border-gray-100">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">Network</span>
+                                <span className="text-[10px] font-black text-black uppercase bg-gray-100 px-2 py-1 rounded-lg">
+                                    {getNetworkDisplayName(withdrawNetwork)}
+                                </span>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">Payout Details</span>
+                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                    <p className="text-[10px] font-mono break-all font-black text-blue-600">
+                                        {withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">Gross Amount</span>
+                                <span className="text-sm font-black text-black">{withdrawAmount} {withdrawNetwork === 'TON' ? 'USDT' : 'INR'}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">Fee</span>
+                                <span className="text-[10px] font-black text-red-500">{withdrawNetwork === 'TON' ? `-$${gasUsdt}` : '₹0.00'}</span>
+                            </div>
                             <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100">
                                 <span className="text-[10px] font-black text-green-700 uppercase">Net Payout</span>
                                 <span className="text-lg font-black text-green-800">
@@ -701,8 +756,9 @@ const App = () => {
                                 </span>
                             </div>
                         </div>
+
                         <div className="px-8 py-8 flex flex-col gap-3">
-                            <button onClick={confirmWithdrawal} className="bg-black text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 text-xs">Send Request</button>
+                            <button onClick={confirmWithdrawal} className="bg-black text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 text-xs transition-all">Send Request</button>
                             <button onClick={() => setShowConfirmModal(false)} className="text-gray-300 font-black uppercase text-[10px] py-2">Go Back</button>
                         </div>
                     </div>
