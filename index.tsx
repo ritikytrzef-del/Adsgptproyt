@@ -1,12 +1,11 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
-  Home, Play, Wallet, History, Clock, Landmark, ExternalLink, 
-  Sparkles, X, AlertCircle, ArrowUpRight, CheckCircle2, Save, 
-  ShieldCheck, Shield, BarChart3, Download, Check, Ban, 
-  ChevronRight, Users, TrendingUp, Calendar, Info, MapPin, Hash, Zap,
-  Mail, Smartphone, IndianRupee, RefreshCw, Settings, UserPlus, MinusCircle, PlusCircle, LayoutDashboard,
-  FileDown, Square, CheckSquare, Layers, Award, KeyRound, ChevronDown, Gift, Copy, Search, Bot, Trash2, Megaphone
+  Home, Wallet, History, Clock, Landmark, X, AlertCircle, CheckCircle2, 
+  ShieldCheck, Shield, ChevronRight, Users, Zap, IndianRupee, RefreshCw, 
+  Settings, MinusCircle, PlusCircle, LayoutDashboard, KeyRound, Copy, 
+  Search, Bot, Trash2, Megaphone, Gift, Info
 } from 'lucide-react';
 
 // --- AUTHORIZATION CONFIG ---
@@ -38,7 +37,6 @@ const App = () => {
     const [adReward, setAdReward] = useState(() => Number(localStorage.getItem('cfg_adReward')) || 0.0002);
     const [adCooldownSec, setAdCooldownSec] = useState(() => Number(localStorage.getItem('cfg_adCooldownSec')) || 120);
     const [tonMinUsdt, setTonMinUsdt] = useState(() => Number(localStorage.getItem('cfg_tonMinUsdt')) || 2.00);
-    const [tonMaxUsdt, setTonMaxUsdt] = useState(() => Number(localStorage.getItem('cfg_tonMaxUsdt')) || 50.00);
     const [upiMinInr, setUpiMinInr] = useState(() => Number(localStorage.getItem('cfg_upiMinInr')) || 100.00);
     const [gplayMinInr, setGplayMinInr] = useState(() => Number(localStorage.getItem('cfg_gplayMinInr')) || 30.00);
     const [gasUsdt, setGasUsdt] = useState(() => Number(localStorage.getItem('cfg_gasUsdt')) || 0.03);
@@ -53,8 +51,11 @@ const App = () => {
     const [giftCardEmail, setGiftCardEmail] = useState(() => localStorage.getItem('giftCardEmail') || '');
     const [adCooldowns, setAdCooldowns] = useState<Record<string, number>>(() => JSON.parse(localStorage.getItem('adCooldowns') || '{}'));
     const [currentTime, setCurrentTime] = useState(Date.now());
+    
+    // Tasks
     const [task1Claimed, setTask1Claimed] = useState(() => localStorage.getItem('task1Claimed') === 'true');
     const [task2Claimed, setTask2Claimed] = useState(() => localStorage.getItem('task2Claimed') === 'true');
+    const [task3Claimed, setTask3Claimed] = useState(() => localStorage.getItem('task3Claimed') === 'true');
 
     // --- WALLET TAB SPECIFIC ---
     const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -63,10 +64,7 @@ const App = () => {
     // --- ADMIN SPECIFIC STATE ---
     const [usersList, setUsersList] = useState<any[]>(() => {
         const saved = localStorage.getItem('usersList');
-        return saved ? JSON.parse(saved) : [
-            { id: 1001, name: 'Alice', username: 'alice_crypto', balance: 5.05, joined: Date.now() - 86400000 * 5 },
-            { id: 1002, name: 'Bob', username: 'bob_payout', balance: 1.01, joined: Date.now() - 86400000 * 2 }
-        ];
+        return saved ? JSON.parse(saved) : [];
     });
     
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -92,15 +90,15 @@ const App = () => {
         localStorage.setItem('isAdminAuth', isPasscodeAuthenticated.toString());
         localStorage.setItem('task1Claimed', task1Claimed.toString());
         localStorage.setItem('task2Claimed', task2Claimed.toString());
+        localStorage.setItem('task3Claimed', task3Claimed.toString());
         
         localStorage.setItem('cfg_adReward', adReward.toString());
         localStorage.setItem('cfg_adCooldownSec', adCooldownSec.toString());
         localStorage.setItem('cfg_tonMinUsdt', tonMinUsdt.toString());
-        localStorage.setItem('cfg_tonMaxUsdt', tonMaxUsdt.toString());
         localStorage.setItem('cfg_upiMinInr', upiMinInr.toString());
         localStorage.setItem('cfg_gplayMinInr', gplayMinInr.toString());
         localStorage.setItem('cfg_gasUsdt', gasUsdt.toString());
-    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, tonMaxUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed]);
+    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed, task3Claimed]);
 
     useEffect(() => {
         if (tg) {
@@ -116,7 +114,7 @@ const App = () => {
                         updated[existingIdx] = { ...updated[existingIdx], username: u.username || '', name: u.first_name };
                         return updated;
                     }
-                    return [...prev, { id: u.id, name: u.first_name, username: u.username || '', balance: balance, totalEarned: 0, joined: Date.now() }];
+                    return [...prev, { id: u.id, name: u.first_name, username: u.username || '', balance: balance, joined: Date.now() }];
                 });
             }
         }
@@ -142,7 +140,7 @@ const App = () => {
     }, [earningsHistory]);
 
     const adminAnalytics = useMemo(() => {
-        const totalSystemBalance = usersList.reduce((acc, u) => acc + u.balance, 0);
+        const totalSystemBalance = usersList.reduce((acc, u) => acc + (Number(u.balance) || 0), 0);
         const totalPending = withdrawalHistory.filter((w: any) => w.status === 'PENDING').reduce((acc, w) => acc + w.amount, 0);
         const totalPaid = withdrawalHistory.filter((w: any) => w.status === 'PAID').reduce((acc, w) => acc + w.amount, 0);
         const activeUsersCount = usersList.length;
@@ -217,7 +215,7 @@ const App = () => {
         return net;
     };
 
-    // --- USER ACTIONS (WATCH ADS) ---
+    // --- USER ACTIONS ---
     const handleWatchAd = (adId: string) => {
         if (adCooldowns[adId] > currentTime) return;
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
@@ -236,65 +234,49 @@ const App = () => {
             setUsersList(prev => prev.map(u => u.id === user.id ? { 
                 ...u, 
                 balance: fromCents(toCents(u.balance) + toCents(rewardAmount)), 
-                totalEarned: (u.totalEarned || 0) + rewardAmount 
             } : u));
             showMessage(`Success! +$${rewardAmount.toFixed(4)}`, 'success');
         };
 
-        if (adId === 'ads1') {
-            const gigaFn = (window as any).showGiga;
-            if (typeof gigaFn === 'function') {
-                try { gigaFn().then(rewardUser).catch(() => rewardUser()); } catch (e) { rewardUser(); }
-            } else { rewardUser(); }
-        } else {
-            const adFn = (window as any).show_10380842;
-            if (typeof adFn === 'function') {
-                try { adFn().then(rewardUser).catch(() => rewardUser()); } catch (e) { rewardUser(); }
-            } else { rewardUser(); }
-        }
+        const adFn = (window as any).show_10380842;
+        if (typeof adFn === 'function') {
+            try { adFn().then(rewardUser).catch(() => rewardUser()); } catch (e) { rewardUser(); }
+        } else { rewardUser(); }
     };
 
-    // --- TASK ACTIONS ---
-    const handleClaimTask1 = () => {
-        if (task1Claimed) return;
-        if (tg) { tg.openTelegramLink('https://t.me/Rewardsoftware_bot'); } else { window.open('https://t.me/Rewardsoftware_bot', '_blank'); }
-        const rewardAmount = 10.00;
-        const now = Date.now();
-        setBalance(prev => fromCents(toCents(prev) + toCents(rewardAmount)));
-        setTask1Claimed(true);
-        setEarningsHistory(prev => [{ 
-            id: Math.random().toString(36).substr(2, 9), 
-            source: "TASK: JOIN BOT", 
-            amount: rewardAmount, 
-            timestamp: now 
-        }, ...prev]);
-        setUsersList(prev => prev.map(u => u.id === user.id ? { 
-            ...u, 
-            balance: fromCents(toCents(u.balance) + toCents(rewardAmount)), 
-            totalEarned: (u.totalEarned || 0) + rewardAmount 
-        } : u));
-        showMessage("Success! $10 task claimed", "success");
-    };
+    const handleClaimTask = (taskId: number, url: string, amount: number) => {
+        let isClaimed = false;
+        if (taskId === 1) isClaimed = task1Claimed;
+        if (taskId === 2) isClaimed = task2Claimed;
+        if (taskId === 3) isClaimed = task3Claimed;
+        
+        if (isClaimed) return;
 
-    const handleClaimTask2 = () => {
-        if (task2Claimed) return;
-        if (tg) { tg.openTelegramLink('https://t.me/Rewardsoftware_'); } else { window.open('https://t.me/Rewardsoftware_', '_blank'); }
-        const rewardAmount = 5.00;
+        if (tg) tg.openTelegramLink(url);
+        else window.open(url, '_blank');
+
         const now = Date.now();
-        setBalance(prev => fromCents(toCents(prev) + toCents(rewardAmount)));
-        setTask2Claimed(true);
+        setBalance(prev => fromCents(toCents(prev) + toCents(amount)));
+        
+        if (taskId === 1) setTask1Claimed(true);
+        if (taskId === 2) setTask2Claimed(true);
+        if (taskId === 3) setTask3Claimed(true);
+
+        const sourceName = taskId === 1 ? "BOT TASK" : taskId === 2 ? "CHANNEL TASK 1" : "CHANNEL TASK 2";
+        
         setEarningsHistory(prev => [{ 
             id: Math.random().toString(36).substr(2, 9), 
-            source: "TASK: JOIN CHANNEL", 
-            amount: rewardAmount, 
+            source: sourceName, 
+            amount: amount, 
             timestamp: now 
         }, ...prev]);
+        
         setUsersList(prev => prev.map(u => u.id === user.id ? { 
             ...u, 
-            balance: fromCents(toCents(u.balance) + toCents(rewardAmount)), 
-            totalEarned: (u.totalEarned || 0) + rewardAmount 
+            balance: fromCents(toCents(u.balance) + toCents(amount)), 
         } : u));
-        showMessage("Success! $5 task claimed", "success");
+        
+        showMessage(`Success! $${amount} claimed`, "success");
     };
 
     const handleWithdrawClick = () => {
@@ -367,6 +349,7 @@ const App = () => {
 
     return (
         <div className="max-w-md mx-auto min-h-screen pb-24 px-4 pt-6 bg-white relative">
+            {/* Added missing Info icon to resolve Cannot find name 'Info' error */}
             {notification && (
                 <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[150] w-[90%] animate-fadeIn">
                     <div className={`p-4 rounded-2xl shadow-2xl flex items-center gap-3 border ${notification.type === 'success' ? 'bg-green-50 border-green-100 text-green-800' : notification.type === 'error' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-blue-50 border-blue-100 text-blue-800'}`}>
@@ -433,24 +416,16 @@ const App = () => {
                                 <h4 className="font-bold text-sm tracking-tight text-black">Earn More</h4>
                                 <p className="text-xs text-gray-500">Join Reward Software Bot</p>
                             </div>
-                            <button 
-                                onClick={() => {
-                                    if (tg) tg.openTelegramLink('https://t.me/Rewardsoftware_bot');
-                                    else window.open('https://t.me/Rewardsoftware_bot', '_blank');
-                                }} 
-                                className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-md shadow-indigo-100"
-                            >
-                                Open
-                            </button>
+                            <button onClick={() => handleClaimTask(1, 'https://t.me/Rewardsoftware_bot', 10)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-md">Open</button>
                         </div>
                     </div>
                 )}
 
-                {isAdminView && isUserAdmin ? (
+                {isAdminView && isUserAdmin && (
                     <div className="flex flex-col gap-6 animate-fadeIn pb-20">
                         <header className="flex justify-between items-center">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white font-black text-lg shadow-lg">R</div>
+                                <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white font-black text-lg">R</div>
                                 <div>
                                     <h2 className="text-xl font-black uppercase tracking-tight leading-none text-black">Console</h2>
                                     <p className="text-[10px] font-bold text-blue-600 uppercase">Admin Tools</p>
@@ -459,7 +434,7 @@ const App = () => {
                             <button onClick={() => setIsAdminView(false)} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><X size={20} /></button>
                         </header>
 
-                        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+                        <div className="flex gap-2 overflow-x-auto hide-scrollbar">
                             {(['dashboard', 'withdrawals', 'users', 'settings'] as const).map(tab => (
                                 <button key={tab} onClick={() => setAdminSubTab(tab)} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase whitespace-nowrap transition-all ${adminSubTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 text-gray-400'}`}>
                                     {tab === 'dashboard' && <LayoutDashboard size={14}/>}
@@ -472,81 +447,60 @@ const App = () => {
                         </div>
 
                         {adminSubTab === 'dashboard' && (
-                            <div className="grid grid-cols-2 gap-3 animate-fadeIn">
-                                <div className="bg-black p-5 rounded-[32px] text-white flex flex-col gap-1 shadow-xl border border-gray-800">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-black p-5 rounded-[32px] text-white flex flex-col gap-1 shadow-xl">
                                     <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">Global Balance</p>
                                     <p className="text-2xl font-black">${adminAnalytics.totalSystemBalance.toFixed(2)}</p>
                                 </div>
-                                <div className="bg-green-50 p-5 rounded-[32px] flex flex-col gap-1 border border-green-100 shadow-sm">
+                                <div className="bg-green-50 p-5 rounded-[32px] flex flex-col gap-1 border border-green-100">
                                     <p className="text-[10px] font-black text-green-700 uppercase tracking-widest">Total Paid</p>
                                     <p className="text-2xl font-black text-green-800">${adminAnalytics.totalPaid.toFixed(2)}</p>
                                 </div>
-                                <div className="bg-blue-50 p-5 rounded-[32px] flex flex-col gap-1 border border-blue-100 col-span-2 shadow-sm">
-                                    <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Active Users</p>
-                                    <p className="text-2xl font-black text-blue-800">{adminAnalytics.activeUsersCount}</p>
+                                <div className="bg-blue-50 p-5 rounded-[32px] flex flex-col gap-1 border border-blue-100 col-span-2">
+                                    <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Requests Logged</p>
+                                    <p className="text-2xl font-black text-blue-800">{adminAnalytics.totalRequestCount} ENTRIES</p>
                                 </div>
                             </div>
                         )}
 
                         {adminSubTab === 'withdrawals' && (
-                            <div className="space-y-4 animate-fadeIn">
+                            <div className="space-y-4">
                                 <div className="flex justify-between items-center px-2">
-                                    <div>
-                                        <p className="text-[10px] font-black text-gray-400 uppercase">Requests View</p>
-                                        <h3 className="text-lg font-black text-black">Payout Queue ({adminAnalytics.totalRequestCount})</h3>
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-100">
-                                        <Clock size={14} className="text-amber-600" />
-                                        <span className="text-[10px] font-black text-amber-700">{adminAnalytics.pendingCount} PENDING</span>
+                                    <h3 className="text-lg font-black text-black">Payout Queue ({adminAnalytics.pendingCount})</h3>
+                                    <div className="flex p-1 bg-gray-100 rounded-xl">
+                                        {(['ALL', 'PENDING', 'PAID', 'REJECTED'] as const).map(f => (
+                                            <button key={f} onClick={() => setAdminWithdrawalFilter(f)} className={`px-3 py-1.5 text-[9px] font-black rounded-lg transition-all ${adminWithdrawalFilter === f ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>{f}</button>
+                                        ))}
                                     </div>
                                 </div>
-
-                                <div className="flex p-1 bg-gray-100 rounded-xl overflow-x-auto hide-scrollbar whitespace-nowrap">
-                                    {(['ALL', 'PENDING', 'PAID', 'REJECTED'] as const).map(f => (
-                                        <button key={f} onClick={() => setAdminWithdrawalFilter(f)} className={`px-4 py-2 text-[10px] font-black rounded-lg transition-all ${adminWithdrawalFilter === f ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>{f}</button>
-                                    ))}
-                                </div>
-
-                                <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-1">
+                                <div className="flex flex-col gap-4">
                                     {filteredWithdrawalsForAdmin.length === 0 ? (
-                                        <div className="text-center py-20 bg-gray-50 rounded-[40px] border border-dashed">
-                                            <Search size={40} className="mx-auto text-gray-200 mb-4" />
-                                            <p className="text-gray-400 text-xs font-bold uppercase">No records matching filter</p>
-                                        </div>
+                                        <div className="text-center py-20 bg-gray-50 rounded-[40px] border border-dashed text-gray-400 text-xs font-bold uppercase">No records</div>
                                     ) : (
                                         filteredWithdrawalsForAdmin.map((w: any) => (
-                                            <div key={w.id} className={`card p-5 rounded-[32px] border-l-4 ${w.status === 'PAID' ? 'border-l-green-500' : w.status === 'REJECTED' ? 'border-l-red-500' : 'border-l-yellow-500 shadow-xl shadow-yellow-50/50'}`}>
+                                            <div key={w.id} className={`card p-5 rounded-[32px] border-l-4 ${w.status === 'PAID' ? 'border-l-green-500' : w.status === 'REJECTED' ? 'border-l-red-500' : 'border-l-yellow-500 shadow-xl'}`}>
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div>
-                                                        <p className="text-sm font-black text-black leading-tight">{w.user_name}</p>
-                                                        <p className="text-[9px] font-bold text-gray-400 uppercase mt-0.5">ID: {w.user_id}</p>
-                                                        <div className="flex items-center gap-2 mt-1.5">
-                                                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-600">{w.network}</span>
-                                                            <p className="text-[9px] text-gray-400 font-bold">{new Date(w.timestamp).toLocaleString()}</p>
-                                                        </div>
+                                                        <p className="text-sm font-black text-black">{w.user_name}</p>
+                                                        <p className="text-[9px] font-bold text-gray-400 uppercase">ID: {w.user_id}</p>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="text-lg font-black text-black leading-none">${w.amount.toFixed(4)}</p>
-                                                        <p className="text-[10px] font-black text-green-600 mt-1">{w.netPayoutINR ? `₹${w.netPayoutINR.toFixed(2)}` : `$${w.netPayout.toFixed(4)}`}</p>
+                                                        <p className="text-lg font-black text-black">${w.amount.toFixed(4)}</p>
+                                                        <p className="text-[10px] font-black text-green-600">{w.netPayoutINR ? `₹${w.netPayoutINR.toFixed(2)}` : `$${w.netPayout.toFixed(4)}`}</p>
                                                     </div>
                                                 </div>
-                                                
-                                                <div className="bg-gray-50 p-3 rounded-2xl mb-4 border border-gray-100/50 group active:scale-[0.99] transition-all" onClick={() => copyToClipboard(w.address)}>
-                                                    <div className="flex justify-between items-center mb-0.5">
-                                                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Target Payout</p>
-                                                        <Copy size={10} className="text-gray-400" />
-                                                    </div>
-                                                    <p className="text-[10px] font-mono break-all text-black font-medium">{w.address}</p>
+                                                <div className="bg-gray-50 p-3 rounded-2xl mb-4 text-[10px] font-mono break-all text-black flex items-center justify-between" onClick={() => copyToClipboard(w.address)}>
+                                                    <span>{w.address}</span>
+                                                    <Copy size={12} className="text-gray-400" />
                                                 </div>
-
                                                 <div className="flex gap-2">
                                                     {w.status === 'PENDING' && (
                                                         <>
-                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'PAID')} className="flex-1 py-3.5 rounded-2xl bg-green-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-lg shadow-green-100">Approve</button>
-                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'REJECTED')} className="flex-1 py-3.5 rounded-2xl bg-red-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-lg shadow-red-100">Reject</button>
+                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'PAID')} className="flex-1 py-3.5 rounded-2xl bg-green-600 text-white text-[10px] font-black uppercase active:scale-95">Approve</button>
+                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'REJECTED')} className="flex-1 py-3.5 rounded-2xl bg-red-600 text-white text-[10px] font-black uppercase active:scale-95">Reject</button>
                                                         </>
                                                     )}
-                                                    <button onClick={() => deleteWithdrawal(w.id)} className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center active:bg-red-50 active:text-red-500 transition-colors border border-gray-100"><Trash2 size={16} /></button>
+                                                    <button onClick={() => deleteWithdrawal(w.id)} className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center active:bg-red-50 active:text-red-500"><Trash2 size={16} /></button>
                                                 </div>
                                             </div>
                                         ))
@@ -556,19 +510,16 @@ const App = () => {
                         )}
 
                         {adminSubTab === 'users' && (
-                            <div className="space-y-3 animate-fadeIn max-h-[70vh] overflow-y-auto pr-1">
-                                <div className="px-2 flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-black text-black">Member List ({adminAnalytics.activeUsersCount})</h3>
-                                    <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl uppercase">Unlimited View</div>
-                                </div>
+                            <div className="space-y-3">
+                                <h3 className="text-lg font-black text-black px-2">Member List ({adminAnalytics.activeUsersCount})</h3>
                                 {usersList.map((u: any) => (
-                                    <div key={u.id} className="card p-4 rounded-[28px] flex items-center justify-between border-l-4 border-l-blue-600 hover:shadow-md transition-shadow">
+                                    <div key={u.id} className="card p-4 rounded-[28px] flex items-center justify-between border-l-4 border-l-blue-600">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black uppercase shadow-inner text-sm">{u.name ? u.name[0] : '?'}</div>
+                                            <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black uppercase text-sm">{u.name ? u.name[0] : '?'}</div>
                                             <div>
-                                                <p className="text-sm font-black text-black leading-none">{u.name}</p>
-                                                <p className="text-[10px] text-blue-600 font-bold mt-0.5 tracking-tight">@{u.username || 'no_username'}</p>
-                                                <p className="text-[8px] text-gray-400 font-bold tracking-tight uppercase mt-1">ID: {u.id} | BAL: ${u.balance.toFixed(4)}</p>
+                                                <p className="text-sm font-black text-black">{u.name}</p>
+                                                <p className="text-[10px] text-blue-600 font-bold tracking-tight">@{u.username || 'unknown'}</p>
+                                                <p className="text-[8px] text-gray-400 font-bold tracking-tight uppercase">ID: {u.id} | BAL: ${u.balance.toFixed(4)}</p>
                                             </div>
                                         </div>
                                         <div className="flex gap-1.5">
@@ -579,116 +530,75 @@ const App = () => {
                                 ))}
                             </div>
                         )}
-
-                        {adminSubTab === 'settings' && (
-                            <div className="space-y-6 animate-fadeIn">
-                                <div className="p-6 rounded-[32px] bg-gray-50 border border-gray-100 shadow-sm">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase mb-4 block tracking-widest">Global Earnings</label>
-                                    <div className="space-y-4">
-                                        <div className="flex flex-col gap-1.5">
-                                            <p className="text-[9px] font-black text-gray-500 uppercase">Ad Reward (USDT)</p>
-                                            <input type="number" step="0.0001" value={adReward} onChange={(e) => setAdReward(parseFloat(e.target.value))} className="bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:ring-2 focus:ring-blue-500/10" />
-                                        </div>
-                                        <div className="flex flex-col gap-1.5">
-                                            <p className="text-[9px] font-black text-gray-500 uppercase">Cooldown (Seconds)</p>
-                                            <input type="number" value={adCooldownSec} onChange={(e) => setAdCooldownSec(parseInt(e.target.value))} className="bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:ring-2 focus:ring-blue-500/10" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="p-6 rounded-[32px] bg-gray-50 border border-gray-100 shadow-sm">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase mb-4 block tracking-widest">Payout Gateways</label>
-                                    <div className="space-y-4">
-                                        <div className="flex flex-col gap-1.5">
-                                            <p className="text-[9px] font-black text-gray-500 uppercase">Conversion (USDT to INR)</p>
-                                            <input type="number" value={exchangeRate} onChange={(e) => setExchangeRate(parseFloat(e.target.value))} className="bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:ring-2 focus:ring-blue-500/10" />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="flex flex-col gap-1.5">
-                                                <p className="text-[9px] font-black text-gray-500 uppercase">Min TON ($)</p>
-                                                <input type="number" value={tonMinUsdt} onChange={(e) => setTonMinUsdt(parseFloat(e.target.value))} className="bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black outline-none" />
-                                            </div>
-                                            <div className="flex flex-col gap-1.5">
-                                                <p className="text-[9px] font-black text-gray-500 uppercase">TON Fee ($)</p>
-                                                <input type="number" value={gasUsdt} onChange={(e) => setGasUsdt(parseFloat(e.target.value))} className="bg-white border border-gray-100 rounded-2xl px-4 py-3 text-sm font-black outline-none" />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
-                ) : null}
+                )}
 
                 {activeTab === 'ads' && (
                     <div className="flex flex-col gap-4 animate-fadeIn">
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Ad Stations</h2></header>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Watch to earn USDT instantly</p>
                         
-                        {/* AD STATIONS */}
                         {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                             <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center font-black text-white shadow-lg">{idx + 1}</div>
+                                    <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center font-black text-white">{idx + 1}</div>
                                     <div>
                                         <p className="font-black text-sm text-black uppercase tracking-tighter">Station {idx + 1}</p>
                                         <p className="text-[10px] text-green-600 font-bold">+${adReward.toFixed(4)}</p>
                                     </div>
                                 </div>
-                                <button disabled={adCooldowns[id] > currentTime} onClick={() => handleWatchAd(id)} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${adCooldowns[id] > currentTime ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-black text-white shadow-xl hover:bg-gray-900 active:scale-95'}`}>{getCooldownText(id)}</button>
+                                <button disabled={adCooldowns[id] > currentTime} onClick={() => handleWatchAd(id)} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${adCooldowns[id] > currentTime ? 'bg-gray-100 text-gray-400' : 'bg-black text-white shadow-xl active:scale-95'}`}>{getCooldownText(id)}</button>
                             </div>
                         ))}
 
                         <div className="h-4"></div>
                         <h3 className="text-xl font-black uppercase tracking-tight text-black px-2">Reward Tasks</h3>
 
-                        {/* TASK 1: BOT */}
                         <div className="card p-6 rounded-[32px] bg-gradient-to-br from-indigo-600 to-purple-700 text-white relative overflow-hidden shadow-2xl">
                             <div className="relative z-10 flex flex-col gap-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-lg"><Bot size={24} className="text-white" /></div>
+                                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-lg"><Bot size={24} className="text-white" /></div>
                                     <div>
                                         <h3 className="font-black text-lg uppercase tracking-tight">Main Bot Task</h3>
                                         <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Join Software Bot</p>
                                     </div>
                                 </div>
-                                <p className="text-xs font-medium opacity-90 leading-relaxed">Unlock $10.00 instantly by joining our official Reward Software Bot.</p>
                                 <div className="flex justify-between items-center mt-2">
                                     <div className="text-2xl font-black">+$10.00</div>
-                                    <button 
-                                        onClick={handleClaimTask1} 
-                                        disabled={task1Claimed} 
-                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${task1Claimed ? 'bg-green-500 text-white cursor-default' : 'bg-white text-indigo-600 hover:bg-gray-100'}`}
-                                    >
-                                        {task1Claimed ? 'Claimed ✓' : 'Complete'}
-                                    </button>
+                                    <button onClick={() => handleClaimTask(1, 'https://t.me/Rewardsoftware_bot', 10)} disabled={task1Claimed} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${task1Claimed ? 'bg-green-500' : 'bg-white text-indigo-600'}`}>{task1Claimed ? 'Claimed ✓' : 'Complete'}</button>
                                 </div>
                             </div>
-                            <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
                         </div>
 
-                        {/* TASK 2: CHANNEL */}
                         <div className="card p-6 rounded-[32px] bg-gradient-to-br from-blue-500 to-cyan-600 text-white relative overflow-hidden shadow-2xl">
                             <div className="relative z-10 flex flex-col gap-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-lg"><Megaphone size={24} className="text-white" /></div>
+                                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-lg"><Megaphone size={24} className="text-white" /></div>
                                     <div>
-                                        <h3 className="font-black text-lg uppercase tracking-tight">Channel Task</h3>
+                                        <h3 className="font-black text-lg uppercase tracking-tight">Channel Task 1</h3>
                                         <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Join Telegram Channel</p>
                                     </div>
                                 </div>
-                                <p className="text-xs font-medium opacity-90 leading-relaxed">Get $5.00 extra by joining our official update channel to stay notified.</p>
                                 <div className="flex justify-between items-center mt-2">
                                     <div className="text-2xl font-black">+$5.00</div>
-                                    <button 
-                                        onClick={handleClaimTask2} 
-                                        disabled={task2Claimed} 
-                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all ${task2Claimed ? 'bg-green-500 text-white cursor-default' : 'bg-white text-blue-600 hover:bg-gray-100'}`}
-                                    >
-                                        {task2Claimed ? 'Claimed ✓' : 'Complete'}
-                                    </button>
+                                    <button onClick={() => handleClaimTask(2, 'https://t.me/Rewardsoftware_', 5)} disabled={task2Claimed} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${task2Claimed ? 'bg-green-500' : 'bg-white text-blue-600'}`}>{task2Claimed ? 'Claimed ✓' : 'Complete'}</button>
                                 </div>
                             </div>
-                            <div className="absolute -left-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                        </div>
+
+                        <div className="card p-6 rounded-[32px] bg-gradient-to-br from-purple-500 to-pink-600 text-white relative overflow-hidden shadow-2xl">
+                            <div className="relative z-10 flex flex-col gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-lg"><Gift size={24} className="text-white" /></div>
+                                    <div>
+                                        <h3 className="font-black text-lg uppercase tracking-tight">Channel Task 2</h3>
+                                        <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Join Update Channel</p>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center mt-2">
+                                    <div className="text-2xl font-black">+$5.00</div>
+                                    <button onClick={() => handleClaimTask(3, 'https://t.me/Rewardsoftware_', 5)} disabled={task3Claimed} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${task3Claimed ? 'bg-green-500' : 'bg-white text-purple-600'}`}>{task3Claimed ? 'Claimed ✓' : 'Complete'}</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -708,22 +618,20 @@ const App = () => {
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Select Method</label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    <button onClick={() => { setWithdrawNetwork('TON'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'TON' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>USDT Ton</button>
-                                    <button onClick={() => { setWithdrawNetwork('GIFT_CARD'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'GIFT_CARD' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>Google Play Giftcard</button>
-                                    <button onClick={() => { setWithdrawNetwork('UPI'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'UPI' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>UPI</button>
+                                    <button onClick={() => { setWithdrawNetwork('TON'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'TON' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>USDT Ton</button>
+                                    <button onClick={() => { setWithdrawNetwork('GIFT_CARD'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'GIFT_CARD' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>Google Play Giftcard</button>
+                                    <button onClick={() => { setWithdrawNetwork('UPI'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'UPI' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>UPI</button>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
-                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                    {withdrawNetwork === 'TON' ? 'Enter USDT Ton address' : withdrawNetwork === 'UPI' ? 'Enter UPI number' : 'Enter Email Id'}
-                                </label>
-                                <input type="text" placeholder="Detail here" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold outline-none focus:ring-2 focus:ring-black/5" value={withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail} onChange={(e) => { if(withdrawNetwork === 'TON') setTonAddress(e.target.value); else if(withdrawNetwork === 'UPI') setUpiId(e.target.value); else setGiftCardEmail(e.target.value); }} />
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{withdrawNetwork === 'TON' ? 'Enter USDT Ton address' : withdrawNetwork === 'UPI' ? 'Enter UPI number' : 'Enter Email Id'}</label>
+                                <input type="text" placeholder="Detail here" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold outline-none" value={withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail} onChange={(e) => { if(withdrawNetwork === 'TON') setTonAddress(e.target.value); else if(withdrawNetwork === 'UPI') setUpiId(e.target.value); else setGiftCardEmail(e.target.value); }} />
                             </div>
                             <div className="flex flex-col gap-2">
                                 <div className="flex justify-between items-center"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Amount ({withdrawNetwork === 'TON' ? 'USDT' : 'INR'})</label><span className="text-[9px] text-gray-400 font-bold">Fee: {withdrawNetwork === 'TON' ? `$${gasUsdt}` : '₹0.00'}</span></div>
-                                <div className="relative"><input type="number" placeholder="0.00" className="w-full bg-gray-50 border border-gray-100 rounded-3xl px-6 py-5 text-xl outline-none font-black focus:ring-2 focus:ring-black/5" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} /><div className="absolute right-6 top-1/2 -translate-y-1/2 font-black text-gray-300 pointer-events-none">{withdrawNetwork === 'TON' ? 'USDT' : 'INR'}</div></div>
+                                <div className="relative"><input type="number" placeholder="0.00" className="w-full bg-gray-50 border border-gray-100 rounded-3xl px-6 py-5 text-xl outline-none font-black" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} /></div>
                             </div>
-                            <button onClick={handleWithdrawClick} disabled={isWithdrawing} className="w-full py-6 rounded-3xl bg-black text-white flex items-center justify-center gap-4 font-black uppercase tracking-[0.25em] active:scale-95 shadow-xl transition-all disabled:opacity-50">{isWithdrawing ? <RefreshCw className="animate-spin" size={20} /> : 'Process Payout'}</button>
+                            <button onClick={handleWithdrawClick} disabled={isWithdrawing} className="w-full py-6 rounded-3xl bg-black text-white flex items-center justify-center gap-4 font-black uppercase tracking-[0.25em] active:scale-95 shadow-xl disabled:opacity-50">{isWithdrawing ? <RefreshCw className="animate-spin" size={20} /> : 'Process Payout'}</button>
                         </div>
                     </div>
                 )}
@@ -745,9 +653,7 @@ const App = () => {
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-sm font-black text-green-600 leading-none">
-                                            {historySubTab === 'earnings' ? `+$${item.amount.toFixed(4)}` : (item.netPayoutINR ? `₹${item.netPayoutINR.toFixed(2)}` : `$${item.netPayout.toFixed(4)}`)}
-                                        </p>
+                                        <p className="text-sm font-black text-green-600 leading-none">{historySubTab === 'earnings' ? `+$${item.amount.toFixed(4)}` : (item.netPayoutINR ? `₹${item.netPayoutINR.toFixed(2)}` : `$${item.netPayout.toFixed(4)}`)}</p>
                                         {historySubTab === 'withdrawals' && <span className="text-[7px] font-black uppercase text-white bg-green-500 px-1.5 py-0.5 rounded-md mt-1 inline-block">{item.status}</span>}
                                     </div>
                                 </div>
@@ -764,7 +670,6 @@ const App = () => {
                         <h3 className="text-xl font-black tracking-tight uppercase">Admin Login</h3>
                         <input type="password" autoFocus className="w-full bg-gray-50 border rounded-2xl px-5 py-4 text-center font-black tracking-[0.2em] text-lg outline-none" value={inputPasscode} onChange={(e) => setInputPasscode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePasscodeSubmit()} />
                         <button onClick={handlePasscodeSubmit} className="bg-black text-white w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs active:scale-95 shadow-xl">Unlock Console</button>
-                        <button onClick={() => setShowPasscodeModal(false)} className="text-gray-300 font-black uppercase text-[9px]">Cancel</button>
                     </div>
                 </div>
             )}
@@ -776,38 +681,13 @@ const App = () => {
                             <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center text-white border border-white/20 mb-3"><ShieldCheck size={32} /></div>
                             <h3 className="text-xl font-black text-white tracking-tighter uppercase">Confirm Payout</h3>
                         </div>
-                        
                         <div className="px-8 py-6 flex flex-col gap-4 border-b border-gray-100">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Network</span>
-                                <span className="text-[10px] font-black text-black uppercase bg-gray-100 px-2 py-1 rounded-lg">
-                                    {getNetworkDisplayName(withdrawNetwork)}
-                                </span>
-                            </div>
-                            <div className="flex flex-col gap-1.5">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Payout Details</span>
-                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                    <p className="text-[10px] font-mono break-all font-black text-blue-600">
-                                        {withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Gross Amount</span>
-                                <span className="text-sm font-black text-black">{withdrawAmount} {withdrawNetwork === 'TON' ? 'USDT' : 'INR'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">Fee</span>
-                                <span className="text-[10px] font-black text-red-500">{withdrawNetwork === 'TON' ? `-$${gasUsdt}` : '₹0.00'}</span>
-                            </div>
-                            <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100">
-                                <span className="text-[10px] font-black text-green-700 uppercase">Net Payout</span>
-                                <span className="text-lg font-black text-green-800">
-                                    {withdrawNetwork === 'TON' ? `$${(parseFloat(withdrawAmount) - gasUsdt).toFixed(4)}` : `₹${parseFloat(withdrawAmount).toFixed(2)}`}
-                                </span>
-                            </div>
+                            <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Network</span><span className="text-[10px] font-black text-black uppercase bg-gray-100 px-2 py-1 rounded-lg">{getNetworkDisplayName(withdrawNetwork)}</span></div>
+                            <div className="flex flex-col gap-1.5"><span className="text-[10px] font-black text-gray-400 uppercase">Details</span><div className="bg-gray-50 p-3 rounded-xl border border-gray-100"><p className="text-[10px] font-mono break-all font-black text-blue-600">{withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail}</p></div></div>
+                            <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Gross</span><span className="text-sm font-black text-black">{withdrawAmount} {withdrawNetwork === 'TON' ? 'USDT' : 'INR'}</span></div>
+                            <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Fee</span><span className="text-[10px] font-black text-red-500">{withdrawNetwork === 'TON' ? `-$${gasUsdt}` : '₹0.00'}</span></div>
+                            <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100"><span className="text-[10px] font-black text-green-700 uppercase">Net</span><span className="text-lg font-black text-green-800">{withdrawNetwork === 'TON' ? `$${(parseFloat(withdrawAmount) - gasUsdt).toFixed(4)}` : `₹${parseFloat(withdrawAmount).toFixed(2)}`}</span></div>
                         </div>
-
                         <div className="px-8 py-8 flex flex-col gap-3">
                             <button onClick={confirmWithdrawal} className="bg-black text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 text-xs transition-all">Send Request</button>
                             <button onClick={() => setShowConfirmModal(false)} className="text-gray-300 font-black uppercase text-[10px] py-2">Go Back</button>
