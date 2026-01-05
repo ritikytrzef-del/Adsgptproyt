@@ -4,24 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Adsgptpro 2</title>
-    <script>
-        // Suppress 'adex timeout' and similar non-critical ad SDK errors from bubbling up
-        window.onerror = function(message, source, lineno, colno, error) {
-            if (message && message.toString().toLowerCase().includes('adex timeout')) {
-                console.warn('AdEx Timeout suppressed');
-                return true;
-            }
-            return false;
-        };
-        // Catch unhandled promise rejections from Ad SDKs
-        window.onunhandledrejection = function(event) {
-            if (event.reason && event.reason.toString().toLowerCase().includes('adex timeout')) {
-                event.preventDefault();
-                console.warn('AdEx Promise Timeout suppressed');
-            }
-        };
-    </script>
-    <script src="https://w.tads.me/widget.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script type="importmap">
@@ -81,14 +63,6 @@
         .hide-scrollbar {
             -ms-overflow-style: none;
             scrollbar-width: none;
-        }
-        /* Tads container styling */
-        #tads-container-8914 {
-            width: 100%;
-            min-height: 50px;
-            margin: 10px 0;
-            border-radius: 12px;
-            overflow: hidden;
         }
     </style>
 </head>

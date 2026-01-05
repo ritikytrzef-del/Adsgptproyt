@@ -4,7 +4,7 @@ import {
   Home, Wallet, History, Clock, Landmark, X, AlertCircle, CheckCircle2, 
   ShieldCheck, Shield, ChevronRight, Users, Zap, IndianRupee, RefreshCw, 
   Settings, MinusCircle, PlusCircle, LayoutDashboard, KeyRound, Copy, 
-  Search, Bot, Trash2, Megaphone, Gift, Info
+  Search, Bot, Trash2, Megaphone, Gift, Info, Share2, UserPlus
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -13,7 +13,8 @@ const ADMIN_CHAT_ID = "6601027952";
 const BOT_TOKEN = "8511554119:AAGAQLkLPEsX3KHCNk5hfkK8ok1pM_qiQm4";
 const SECRET_ADMIN_PASSCODE = "REWARD_SOFTWARE_PRO_ADMIN_ULTRA_LONG_SECURE_PASSCODE_2025_ACCESS_GRANTED_7952"; 
 const AUTO_PAID_TIMEOUT = 24 * 60 * 60 * 1000; // 24 Hours in ms
-const TADS_WIDGET_ID = 8914;
+const REFERRAL_BONUS = 0.002;
+const BOT_USERNAME = "Adsgptpro2_bot";
 
 // Helper to avoid floating point issues
 const toCents = (val: number | string) => Math.round(parseFloat(val.toString()) * 1000000);
@@ -31,6 +32,11 @@ const App = () => {
     const [showPasscodeModal, setShowPasscodeModal] = useState(false);
     const [inputPasscode, setInputPasscode] = useState("");
     const [isPasscodeAuthenticated, setIsPasscodeAuthenticated] = useState(() => localStorage.getItem('isAdminAuth') === 'true');
+
+    // Referral State
+    const [hasRedeemedReferral, setHasRedeemedReferral] = useState(() => localStorage.getItem('hasRedeemedReferral') === 'true');
+    const [referralInput, setReferralInput] = useState("");
+    const [referralCount, setReferralCount] = useState(() => Number(localStorage.getItem('referralCount')) || 0);
 
     // Admin Tabs
     const [adminSubTab, setAdminSubTab] = useState<'dashboard' | 'withdrawals' | 'users' | 'settings'>('dashboard');
@@ -76,10 +82,6 @@ const App = () => {
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [historySubTab, setHistorySubTab] = useState('earnings');
 
-    // Tads Controller Reference
-    const tadsControllerRef = useRef<any>(null);
-    const pendingAdRewardRef = useRef<string | null>(null);
-
     const isUserAdmin = useMemo(() => {
         return user.id === AUTHORIZED_ADMIN_ID || isPasscodeAuthenticated;
     }, [user.id, isPasscodeAuthenticated]);
@@ -99,6 +101,8 @@ const App = () => {
         localStorage.setItem('task1Claimed', task1Claimed.toString());
         localStorage.setItem('task2Claimed', task2Claimed.toString());
         localStorage.setItem('task3Claimed', task3Claimed.toString());
+        localStorage.setItem('hasRedeemedReferral', hasRedeemedReferral.toString());
+        localStorage.setItem('referralCount', referralCount.toString());
         
         localStorage.setItem('cfg_adReward', adReward.toString());
         localStorage.setItem('cfg_adCooldownSec', adCooldownSec.toString());
@@ -106,58 +110,7 @@ const App = () => {
         localStorage.setItem('cfg_upiMinInr', upiMinInr.toString());
         localStorage.setItem('cfg_gplayMinInr', gplayMinInr.toString());
         localStorage.setItem('cfg_gasUsdt', gasUsdt.toString());
-    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed, task3Claimed]);
-
-    // Initialize Tads.me helper
-    const initTads = () => {
-        if ((window as any).tads) {
-            const container = document.getElementById(`tads-container-${TADS_WIDGET_ID}`);
-            if (!container) return false;
-
-            const onClickRewardCallback = (adId: string) => {
-                if (pendingAdRewardRef.current) {
-                    rewardUser(pendingAdRewardRef.current);
-                    pendingAdRewardRef.current = null;
-                }
-            };
-
-            const adsNotFoundCallback = () => {
-                console.log('Tads.me: Ad inventory empty');
-            };
-
-            try {
-                tadsControllerRef.current = (window as any).tads.init({
-                    widgetId: TADS_WIDGET_ID,
-                    type: 'static',
-                    containerId: `tads-container-${TADS_WIDGET_ID}`,
-                    debug: false, // REAL ADS MODE
-                    onClickReward: onClickRewardCallback,
-                    onAdsNotFound: adsNotFoundCallback
-                });
-                return true;
-            } catch (e) {
-                console.error('Tads Init Error:', e);
-                return false;
-            }
-        }
-        return false;
-    };
-
-    // Trigger Tads Init when entering Ads tab
-    useEffect(() => {
-        if (activeTab === 'ads') {
-            const timer = setTimeout(() => {
-                if (!initTads()) {
-                   let attempts = 0;
-                   const interval = setInterval(() => {
-                       attempts++;
-                       if (initTads() || attempts > 20) clearInterval(interval);
-                   }, 300);
-                }
-            }, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [activeTab]);
+    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed, task3Claimed, hasRedeemedReferral, referralCount]);
 
     // Automatic Status Update (PENDING -> PAID after 24H)
     useEffect(() => {
@@ -264,6 +217,54 @@ const App = () => {
         }
     };
 
+    // Referral System Logic
+    const handleRedeemReferral = () => {
+        if (hasRedeemedReferral) {
+            return showMessage("Bonus already claimed", "info");
+        }
+        if (!referralInput.trim()) {
+            return showMessage("Enter a valid code", "error");
+        }
+        
+        const ownId = user.id.toString();
+        const ownUsername = user.username?.toLowerCase() || "";
+        const input = referralInput.trim().toLowerCase().replace('@', '');
+
+        if (input === ownId || input === ownUsername) {
+            return showMessage("Cannot use your own code", "error");
+        }
+
+        const now = Date.now();
+        setBalance(prev => fromCents(toCents(prev) + toCents(REFERRAL_BONUS)));
+        setHasRedeemedReferral(true);
+        setEarningsHistory(prev => [{ 
+            id: Math.random().toString(36).substr(2, 9), 
+            source: `REFERRAL BONUS (@${input})`, 
+            amount: REFERRAL_BONUS, 
+            timestamp: now 
+        }, ...prev]);
+        
+        setUsersList(prev => prev.map(u => u.id === user.id ? { 
+            ...u, 
+            balance: fromCents(toCents(u.balance) + toCents(REFERRAL_BONUS)), 
+        } : u));
+
+        showMessage(`Success! +$${REFERRAL_BONUS} Bonus`, "success");
+        setReferralInput("");
+    };
+
+    const handleShareReferral = () => {
+        const refLink = `https://t.me/${BOT_USERNAME}?start=${user.id}`;
+        const text = `Join Adsgptpro 2 and earn USDT! Use my referral code: ${user.username ? '@' + user.username : user.id}\nLink: ${refLink}`;
+        
+        if (tg) {
+            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(text)}`);
+        } else {
+            copyToClipboard(text);
+            showMessage("Referral Link Copied!", "success");
+        }
+    };
+
     // Admin Panel Ops
     const adjustUserBalance = (userId: number, delta: number) => {
         setUsersList(prev => prev.map(u => u.id === userId ? { ...u, balance: Math.max(0, fromCents(toCents(u.balance) + toCents(delta))) } : u));
@@ -321,14 +322,14 @@ const App = () => {
     };
 
     // Reward User Logic
-    const rewardUser = (adId: string) => {
+    const rewardUser = (stationId: string) => {
         const now = Date.now();
         const rewardAmount = adReward;
         setBalance(prev => fromCents(toCents(prev) + toCents(rewardAmount)));
-        setAdCooldowns(prev => ({ ...prev, [adId]: now + (adCooldownSec * 1000) }));
+        setAdCooldowns(prev => ({ ...prev, [stationId]: now + (adCooldownSec * 1000) }));
         setEarningsHistory(prev => [{ 
             id: Math.random().toString(36).substr(2, 9), 
-            source: `AD SLOT ${adId.replace('ads', '')}`, 
+            source: `STATION ${stationId.replace('ads', '')}`, 
             amount: rewardAmount, 
             timestamp: now 
         }, ...prev]);
@@ -339,45 +340,19 @@ const App = () => {
         showMessage(`Success! +$${rewardAmount.toFixed(4)}`, 'success');
     };
 
-    // User Actions
-    const handleWatchAd = (adId: string) => {
-        if (adCooldowns[adId] > currentTime || loadingAdId) return;
+    // User Actions - Now Simulated without external Tads SDK
+    const handleWatchAd = (stationId: string) => {
+        if (adCooldowns[stationId] > currentTime || loadingAdId) return;
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-        if (!tadsControllerRef.current) {
-            initTads();
-            if (!tadsControllerRef.current) {
-                showMessage('Ad Engine starting...', 'info');
-                return;
-            }
-        }
-
-        setLoadingAdId(adId);
-        pendingAdRewardRef.current = adId;
-        showMessage('Searching for Ads...', 'info');
+        setLoadingAdId(stationId);
+        showMessage('Processing reward...', 'info');
         
-        const container = document.getElementById(`tads-container-${TADS_WIDGET_ID}`);
-        if (container) {
-            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        tadsControllerRef.current.loadAd()
-            .then(() => {
-                return tadsControllerRef.current.showAd();
-            })
-            .then(() => {
-                setLoadingAdId(null);
-            })
-            .catch((err: any) => {
-                console.error('Tads Error:', err);
-                setLoadingAdId(null);
-                
-                let errorMsg = 'No ads available now. Please try again later.';
-                if (err && err.message) {
-                    if (err.message.includes('timeout')) errorMsg = 'Ad request timed out. Retrying...';
-                }
-                showMessage(errorMsg, 'error');
-            });
+        // Simulating ad watching time
+        setTimeout(() => {
+            rewardUser(stationId);
+            setLoadingAdId(null);
+        }, 2000);
     };
 
     const handleClaimTask = (taskId: number, url: string, amount: number) => {
@@ -467,7 +442,6 @@ const App = () => {
             timestamp: now
         };
 
-        // Send to Telegram Bot
         sendTelegramBotAlert(withdrawal);
 
         setTimeout(() => {
@@ -487,10 +461,10 @@ const App = () => {
         }, 1200);
     };
 
-    const getCooldownText = (adId: string) => {
-        if (loadingAdId === adId) return 'Searching...';
-        const remaining = (adCooldowns[adId] || 0) - currentTime;
-        if (remaining <= 0) return 'Watch Ad';
+    const getCooldownText = (stationId: string) => {
+        if (loadingAdId === stationId) return 'Loading...';
+        const remaining = (adCooldowns[stationId] || 0) - currentTime;
+        if (remaining <= 0) return 'Claim Reward';
         const mins = Math.floor(remaining / 60000);
         const secs = Math.floor((remaining % 60000) / 1000);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -548,151 +522,84 @@ const App = () => {
                                 <p className="text-2xl font-bold text-blue-600">${stats.totalEarnings.toFixed(4)}</p>
                             </div>
                         </div>
+
+                        {!hasRedeemedReferral && (
+                            <div className="card p-6 rounded-[32px] border-l-4 border-l-orange-500 bg-orange-50/20">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><Gift size={20} /></div>
+                                    <div>
+                                        <h4 className="font-black text-sm text-black uppercase tracking-tight">Redeem Code</h4>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase">Claim $0.002 bonus</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="text" 
+                                        placeholder="Enter Referrer Code" 
+                                        className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold outline-none uppercase shadow-sm"
+                                        value={referralInput}
+                                        onChange={(e) => setReferralInput(e.target.value)}
+                                    />
+                                    <button 
+                                        onClick={handleRedeemReferral}
+                                        className="bg-black text-white px-5 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-md"
+                                    >
+                                        Claim
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="card p-6 rounded-[40px] bg-black text-white relative overflow-hidden shadow-2xl">
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-white border border-white/20"><Users size={24} /></div>
+                                        <div>
+                                            <h3 className="font-black text-lg uppercase tracking-tight leading-none">Refer & Earn</h3>
+                                            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mt-1">$0.002 Per Friend</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[9px] font-black uppercase text-gray-400">Total Referrals</p>
+                                        <p className="text-2xl font-black text-white">{referralCount}</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between mb-4">
+                                    <div>
+                                        <p className="text-[8px] font-black uppercase text-gray-500">Your Code</p>
+                                        <p className="text-sm font-black text-blue-400 uppercase tracking-widest">{user.username ? '@' + user.username : user.id}</p>
+                                    </div>
+                                    <button onClick={() => copyToClipboard(user.username ? '@' + user.username : user.id.toString())} className="p-2.5 rounded-xl bg-white/10 active:bg-white/20 transition-all text-white">
+                                        <Copy size={16} />
+                                    </button>
+                                </div>
+
+                                <button 
+                                    onClick={handleShareReferral}
+                                    className="w-full py-4 rounded-2xl bg-blue-600 text-white flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[11px] active:scale-95 shadow-lg shadow-blue-600/20"
+                                >
+                                    <Share2 size={16} /> Share Now
+                                </button>
+                            </div>
+                        </div>
                         
                         <div className="card p-5 rounded-3xl flex items-center gap-4 border-l-4 border-l-purple-500">
                             <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 shadow-sm"><Zap size={20} /></div>
                             <div className="flex-1">
-                                <h4 className="font-bold text-sm tracking-tight text-black">Ad Revenue</h4>
-                                <p className="text-xs text-gray-500">Yield: ${adReward} / {adCooldownSec}s</p>
+                                <h4 className="font-bold text-sm tracking-tight text-black">Reward Stations</h4>
+                                <p className="text-xs text-gray-500">Claim: ${adReward} every {adCooldownSec}s</p>
                             </div>
                             <button onClick={() => setActiveTab('ads')} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><ChevronRight size={18} /></button>
                         </div>
-
-                        <div className="card p-5 rounded-3xl flex items-center gap-4 border-l-4 border-l-indigo-600 shadow-sm">
-                            <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm"><Bot size={22} /></div>
-                            <div className="flex-1">
-                                <h4 className="font-bold text-sm tracking-tight text-black">Reward Bot</h4>
-                                <p className="text-xs text-gray-500">Join to earn more crypto</p>
-                            </div>
-                            <button onClick={() => handleClaimTask(1, 'https://t.me/Rewardsoftware_bot', 10)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95">Claim</button>
-                        </div>
-                    </div>
-                )}
-
-                {isAdminView && isUserAdmin && (
-                    <div className="flex flex-col gap-6 animate-fadeIn pb-20">
-                        <header className="flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white font-black text-lg">R</div>
-                                <div>
-                                    <h2 className="text-xl font-black uppercase tracking-tight leading-none text-black">Admin Panel</h2>
-                                    <p className="text-[10px] font-bold text-blue-600 uppercase">Adsgptpro 2 Console</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setIsAdminView(false)} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><X size={20} /></button>
-                        </header>
-
-                        <div className="flex gap-2 overflow-x-auto hide-scrollbar">
-                            {(['dashboard', 'withdrawals', 'users', 'settings'] as const).map(tab => (
-                                <button key={tab} onClick={() => setAdminSubTab(tab)} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase whitespace-nowrap transition-all ${adminSubTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 text-gray-400'}`}>
-                                    {tab === 'dashboard' && <LayoutDashboard size={14}/>}
-                                    {tab === 'withdrawals' && <Landmark size={14}/>}
-                                    {tab === 'users' && <Users size={14}/>}
-                                    {tab === 'settings' && <Settings size={14}/>}
-                                    {tab}
-                                </button>
-                            ))}
-                        </div>
-
-                        {adminSubTab === 'dashboard' && (
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-black p-5 rounded-[32px] text-white flex flex-col gap-1 shadow-xl">
-                                    <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">Global Bal</p>
-                                    <p className="text-2xl font-black">${adminAnalytics.totalSystemBalance.toFixed(2)}</p>
-                                </div>
-                                <div className="bg-green-50 p-5 rounded-[32px] flex flex-col gap-1 border border-green-100">
-                                    <p className="text-[10px] font-black text-green-700 uppercase tracking-widest">Paid Out</p>
-                                    <p className="text-2xl font-black text-green-800">${adminAnalytics.totalPaid.toFixed(2)}</p>
-                                </div>
-                                <div className="bg-blue-50 p-5 rounded-[32px] flex flex-col gap-1 border border-blue-100 col-span-2">
-                                    <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Total Logs</p>
-                                    <p className="text-2xl font-black text-blue-800">{adminAnalytics.totalRequestCount} REQUESTS</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {adminSubTab === 'withdrawals' && (
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center px-2">
-                                    <h3 className="text-lg font-black text-black">Payout Queue ({adminAnalytics.pendingCount})</h3>
-                                    <div className="flex p-1 bg-gray-100 rounded-xl">
-                                        {(['ALL', 'PENDING', 'PAID', 'REJECTED'] as const).map(f => (
-                                            <button key={f} onClick={() => setAdminWithdrawalFilter(f)} className={`px-3 py-1.5 text-[9px] font-black rounded-lg transition-all ${adminWithdrawalFilter === f ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>{f}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="flex flex-col gap-4">
-                                    {filteredWithdrawalsForAdmin.length === 0 ? (
-                                        <div className="text-center py-20 bg-gray-50 rounded-[40px] border border-dashed text-gray-400 text-xs font-bold uppercase">Queue empty</div>
-                                    ) : (
-                                        filteredWithdrawalsForAdmin.map((w: any) => (
-                                            <div key={w.id} className={`card p-5 rounded-[32px] border-l-4 ${w.status === 'PAID' ? 'border-l-green-500' : w.status === 'REJECTED' ? 'border-l-red-500' : 'border-l-yellow-500 shadow-xl'}`}>
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <div>
-                                                        <p className="text-sm font-black text-black">{w.user_name}</p>
-                                                        <p className="text-[9px] font-bold text-gray-400 uppercase">UID: {w.user_id}</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-lg font-black text-black">${w.amount.toFixed(4)}</p>
-                                                        <p className="text-[10px] font-black text-green-600">{w.netPayoutINR ? `₹${w.netPayoutINR.toFixed(2)}` : `$${w.netPayout.toFixed(4)}`}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="bg-gray-50 p-3 rounded-2xl mb-4 text-[10px] font-mono break-all text-black flex items-center justify-between group" onClick={() => copyToClipboard(w.address)}>
-                                                    <span>{w.address}</span>
-                                                    <Copy size={12} className="text-gray-400 opacity-0 group-hover:opacity-100" />
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    {w.status === 'PENDING' && (
-                                                        <>
-                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'PAID')} className="flex-1 py-3.5 rounded-2xl bg-green-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-md">Pay</button>
-                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'REJECTED')} className="flex-1 py-3.5 rounded-2xl bg-red-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-md">Reject</button>
-                                                        </>
-                                                    )}
-                                                    <button onClick={() => deleteWithdrawal(w.id)} className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center active:text-red-500 border border-gray-100"><Trash2 size={16} /></button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {adminSubTab === 'users' && (
-                            <div className="space-y-3">
-                                <h3 className="text-lg font-black text-black px-2">Members ({adminAnalytics.activeUsersCount})</h3>
-                                {usersList.map((u: any) => (
-                                    <div key={u.id} className="card p-4 rounded-[28px] flex items-center justify-between border-l-4 border-l-blue-600">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black uppercase text-sm">{u.name ? u.name[0] : '?'}</div>
-                                            <div>
-                                                <p className="text-sm font-black text-black">{u.name}</p>
-                                                <p className="text-[10px] text-blue-600 font-bold">@{u.username || 'n/a'}</p>
-                                                <p className="text-[8px] text-gray-400 font-bold uppercase">BAL: ${u.balance.toFixed(4)}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-1.5">
-                                            <button onClick={() => adjustUserBalance(u.id, 0.50)} className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100"><PlusCircle size={18}/></button>
-                                            <button onClick={() => adjustUserBalance(u.id, -0.50)} className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100"><MinusCircle size={18}/></button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 )}
 
                 {activeTab === 'ads' && (
                     <div className="flex flex-col gap-4 animate-fadeIn">
-                        <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn USDT</h2></header>
+                        <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn Rewards</h2></header>
                         
-                        {/* Real Ad Placement */}
-                        <div 
-                            id={`tads-container-${TADS_WIDGET_ID}`} 
-                            className="min-h-[120px] w-full bg-gray-50 rounded-[32px] border border-dashed border-gray-200 flex items-center justify-center relative overflow-hidden shadow-inner"
-                        >
-                            <div className="text-[10px] text-gray-300 font-black uppercase tracking-[0.2em] absolute inset-0 flex items-center justify-center pointer-events-none">Waiting for Ad...</div>
-                        </div>
-
                         <div className="grid grid-cols-1 gap-3">
                             {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                                 <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-all hover:border-black/10">
@@ -700,7 +607,7 @@ const App = () => {
                                         <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center font-black text-white shadow-lg">{idx + 1}</div>
                                         <div>
                                             <p className="font-black text-sm text-black uppercase tracking-tighter">Station {idx + 1}</p>
-                                            <p className="text-[10px] text-green-600 font-bold tracking-widest">REAL AD YIELD</p>
+                                            <p className="text-[10px] text-green-600 font-bold tracking-widest">USDT YIELD</p>
                                         </div>
                                     </div>
                                     <button 
@@ -824,32 +731,10 @@ const App = () => {
                 </div>
             )}
 
-            {showConfirmModal && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 backdrop-blur-md bg-black/60 animate-fadeIn">
-                    <div className="bg-white w-full max-sm rounded-[40px] overflow-hidden shadow-2xl border border-gray-100">
-                        <div className="bg-black px-8 py-8 flex flex-col items-center text-center">
-                            <div className="w-16 h-16 bg-white/10 rounded-3xl flex items-center justify-center text-white border border-white/20 mb-3"><ShieldCheck size={32} /></div>
-                            <h3 className="text-xl font-black text-white tracking-tighter uppercase">Review Payout</h3>
-                        </div>
-                        <div className="px-8 py-6 flex flex-col gap-4 border-b border-gray-100">
-                            <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Gateway</span><span className="text-[10px] font-black text-black uppercase bg-gray-100 px-2 py-1 rounded-lg">{getNetworkDisplayName(withdrawNetwork)}</span></div>
-                            <div className="flex flex-col gap-1.5"><span className="text-[10px] font-black text-gray-400 uppercase">Target Detail</span><div className="bg-gray-50 p-3 rounded-xl border border-gray-100"><p className="text-[10px] font-mono break-all font-black text-blue-600">{withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail}</p></div></div>
-                            <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Request Amount</span><span className="text-sm font-black text-black">{withdrawAmount} {withdrawNetwork === 'TON' ? 'USDT' : 'INR'}</span></div>
-                            <div className="flex justify-between items-center"><span className="text-[10px] font-black text-gray-400 uppercase">Network Fee</span><span className="text-[10px] font-black text-red-500">{withdrawNetwork === 'TON' ? `-$${gasUsdt}` : '₹0.00'}</span></div>
-                            <div className="flex justify-between items-center bg-green-50 p-3 rounded-2xl border border-green-100"><span className="text-[10px] font-black text-green-700 uppercase">Net To Pay</span><span className="text-lg font-black text-green-800">{withdrawNetwork === 'TON' ? `$${(parseFloat(withdrawAmount) - gasUsdt).toFixed(4)}` : `₹${parseFloat(withdrawAmount).toFixed(2)}`}</span></div>
-                        </div>
-                        <div className="px-8 py-8 flex flex-col gap-3">
-                            <button onClick={confirmWithdrawal} className="bg-black text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl active:scale-95 text-xs">Confirm Payout</button>
-                            <button onClick={() => setShowConfirmModal(false)} className="text-gray-300 font-black uppercase text-[10px] py-2">Go Back</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-100 px-6 py-4 flex justify-between items-center z-50 shadow-2xl">
                 <button onClick={() => { setActiveTab('home'); setIsAdminView(false); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'home' && !isAdminView ? 'text-black scale-110' : 'text-gray-300'}`}><Home size={22} /><span className="text-[9px] font-black uppercase">Home</span></button>
-                <button onClick={() => { setActiveTab('ads'); setIsAdminView(false); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'ads' ? 'text-black scale-110' : 'text-gray-300'}`}><Zap size={22} /><span className="text-[9px] font-black uppercase">Ads</span></button>
-                <button onClick={() => { setActiveTab('wallet'); setIsAdminView(false); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'wallet' ? 'text-black scale-110' : 'text-gray-300'}`}><Wallet size={22} /><span className="text-[9px] font-black uppercase">Wallet</span></button>
+                <button onClick={() => { setActiveTab('ads'); setIsAdminView(false); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'ads' ? 'text-black scale-110' : 'text-gray-300'}`}><Zap size={22} /><span className="text-[9px] font-black uppercase">Earn</span></button>
+                <button onClick={() => { setActiveTab('wallet'); setIsAdminView(false); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'wallet' ? 'text-black scale-110' : 'text-gray-300'}`}><Wallet size={22} /><span className="text-[9px] font-black uppercase">Payout</span></button>
                 <button onClick={() => { setActiveTab('history'); setIsAdminView(false); }} className={`flex flex-col items-center gap-1.5 transition-all ${activeTab === 'history' ? 'text-black scale-110' : 'text-gray-300'}`}><History size={22} /><span className="text-[9px] font-black uppercase">History</span></button>
             </nav>
         </div>
