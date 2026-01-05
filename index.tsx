@@ -13,8 +13,6 @@ const ADMIN_CHAT_ID = "6601027952";
 const BOT_TOKEN = "8511554119:AAGAQLkLPEsX3KHCNk5hfkK8ok1pM_qiQm4";
 const SECRET_ADMIN_PASSCODE = "REWARD_SOFTWARE_PRO_ADMIN_ULTRA_LONG_SECURE_PASSCODE_2025_ACCESS_GRANTED_7952"; 
 const AUTO_PAID_TIMEOUT = 24 * 60 * 60 * 1000; // 24 Hours in ms
-const REFERRAL_BONUS = 0.002;
-const BOT_USERNAME = "Adsgptpro2_bot";
 
 // Helper to avoid floating point issues
 const toCents = (val: number | string) => Math.round(parseFloat(val.toString()) * 1000000);
@@ -33,16 +31,11 @@ const App = () => {
     const [inputPasscode, setInputPasscode] = useState("");
     const [isPasscodeAuthenticated, setIsPasscodeAuthenticated] = useState(() => localStorage.getItem('isAdminAuth') === 'true');
 
-    // Referral State
-    const [hasRedeemedReferral, setHasRedeemedReferral] = useState(() => localStorage.getItem('hasRedeemedReferral') === 'true');
-    const [referralInput, setReferralInput] = useState("");
-    const [referralCount, setReferralCount] = useState(() => Number(localStorage.getItem('referralCount')) || 0);
-
     // Admin Tabs
     const [adminSubTab, setAdminSubTab] = useState<'dashboard' | 'withdrawals' | 'users' | 'settings'>('dashboard');
     const [adminWithdrawalFilter, setAdminWithdrawalFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'REJECTED'>('PENDING');
     
-    // Config
+    // Config - Setting adReward to 0.0002 as requested
     const [adReward, setAdReward] = useState(() => Number(localStorage.getItem('cfg_adReward')) || 0.0002);
     const [adCooldownSec, setAdCooldownSec] = useState(() => Number(localStorage.getItem('cfg_adCooldownSec')) || 120);
     const [tonMinUsdt, setTonMinUsdt] = useState(() => Number(localStorage.getItem('cfg_tonMinUsdt')) || 2.00);
@@ -101,8 +94,6 @@ const App = () => {
         localStorage.setItem('task1Claimed', task1Claimed.toString());
         localStorage.setItem('task2Claimed', task2Claimed.toString());
         localStorage.setItem('task3Claimed', task3Claimed.toString());
-        localStorage.setItem('hasRedeemedReferral', hasRedeemedReferral.toString());
-        localStorage.setItem('referralCount', referralCount.toString());
         
         localStorage.setItem('cfg_adReward', adReward.toString());
         localStorage.setItem('cfg_adCooldownSec', adCooldownSec.toString());
@@ -110,7 +101,7 @@ const App = () => {
         localStorage.setItem('cfg_upiMinInr', upiMinInr.toString());
         localStorage.setItem('cfg_gplayMinInr', gplayMinInr.toString());
         localStorage.setItem('cfg_gasUsdt', gasUsdt.toString());
-    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed, task3Claimed, hasRedeemedReferral, referralCount]);
+    }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed, task3Claimed]);
 
     // Automatic Status Update (PENDING -> PAID after 24H)
     useEffect(() => {
@@ -145,8 +136,7 @@ const App = () => {
                         updated[existingIdx] = { 
                             ...updated[existingIdx], 
                             username: u.username || '', 
-                            name: u.first_name,
-                            referralCount: updated[existingIdx].referralCount || 0 
+                            name: u.first_name
                         };
                         return updated;
                     }
@@ -155,7 +145,6 @@ const App = () => {
                         name: u.first_name, 
                         username: u.username || '', 
                         balance: balance, 
-                        referralCount: 0,
                         joined: Date.now() 
                     }];
                 });
@@ -226,74 +215,6 @@ const App = () => {
         } else {
             showMessage("Access Denied", "error");
             setInputPasscode("");
-        }
-    };
-
-    // Referral System Logic - Updated for Dual Rewards
-    const handleRedeemReferral = () => {
-        if (hasRedeemedReferral) {
-            return showMessage("Bonus already claimed", "info");
-        }
-        if (!referralInput.trim()) {
-            return showMessage("Enter a valid code", "error");
-        }
-        
-        const ownId = user.id.toString();
-        const ownUsername = user.username?.toLowerCase() || "";
-        const inputRaw = referralInput.trim().toLowerCase().replace('@', '');
-
-        if (inputRaw === ownId || inputRaw === ownUsername) {
-            return showMessage("Cannot use your own code", "error");
-        }
-
-        // Logic: Find the referrer in the "Database" (usersList)
-        let referrerFound = false;
-        const updatedUsersList = usersList.map(u => {
-            const isMatch = u.id.toString() === inputRaw || u.username?.toLowerCase() === inputRaw;
-            if (isMatch) {
-                referrerFound = true;
-                return {
-                    ...u,
-                    balance: fromCents(toCents(u.balance) + toCents(REFERRAL_BONUS)),
-                    referralCount: (u.referralCount || 0) + 1
-                };
-            }
-            return u;
-        });
-
-        // Even if referrer isn't in usersList yet (simulated logic), we still reward the current user
-        const now = Date.now();
-        setBalance(prev => fromCents(toCents(prev) + toCents(REFERRAL_BONUS)));
-        setHasRedeemedReferral(true);
-        setEarningsHistory(prev => [{ 
-            id: Math.random().toString(36).substr(2, 9), 
-            source: `REFERRAL BONUS (@${inputRaw})`, 
-            amount: REFERRAL_BONUS, 
-            timestamp: now 
-        }, ...prev]);
-        
-        // Update local usersList for admin tracking
-        const finalUsersList = updatedUsersList.map(u => u.id === user.id ? { 
-            ...u, 
-            balance: fromCents(toCents(u.balance) + toCents(REFERRAL_BONUS)), 
-        } : u);
-        
-        setUsersList(finalUsersList);
-
-        if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        showMessage(`Dual Bonus! You & Referrer got $${REFERRAL_BONUS}`, "success");
-        setReferralInput("");
-    };
-
-    const handleShareReferral = () => {
-        const refLink = `https://t.me/${BOT_USERNAME}?start=${user.id}`;
-        const text = `Join Adsgptpro 2 and earn USDT! Use my referral code: ${user.username ? '@' + user.username : user.id}\nLink: ${refLink}`;
-        
-        if (tg) {
-            tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent(text)}`);
-        } else {
-            copyToClipboard(text);
-            showMessage("Referral Link Copied!", "success");
         }
     };
 
@@ -554,76 +475,15 @@ const App = () => {
                                 <p className="text-2xl font-bold text-blue-600">${stats.totalEarnings.toFixed(4)}</p>
                             </div>
                         </div>
-
-                        {!hasRedeemedReferral && (
-                            <div className="card p-6 rounded-[32px] border-l-4 border-l-orange-500 bg-orange-50/20">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><Gift size={20} /></div>
-                                    <div>
-                                        <h4 className="font-black text-sm text-black uppercase tracking-tight">Redeem Code</h4>
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase">Claim $0.002 bonus</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Enter Referrer Code" 
-                                        className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3 text-xs font-bold outline-none uppercase shadow-sm"
-                                        value={referralInput}
-                                        onChange={(e) => setReferralInput(e.target.value)}
-                                    />
-                                    <button 
-                                        onClick={handleRedeemReferral}
-                                        className="bg-black text-white px-5 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-md"
-                                    >
-                                        Claim
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="card p-6 rounded-[40px] bg-black text-white relative overflow-hidden shadow-2xl">
-                            <div className="relative z-10">
-                                <div className="flex justify-between items-start mb-6">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center text-white border border-white/20"><Users size={24} /></div>
-                                        <div>
-                                            <h3 className="font-black text-lg uppercase tracking-tight leading-none">Refer & Earn</h3>
-                                            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mt-1">$0.002 Per Friend</p>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[9px] font-black uppercase text-gray-400">Total Referrals</p>
-                                        <p className="text-2xl font-black text-white">{referralCount}</p>
-                                    </div>
-                                </div>
-                                
-                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center justify-between mb-4">
-                                    <div>
-                                        <p className="text-[8px] font-black uppercase text-gray-500">Your Code</p>
-                                        <p className="text-sm font-black text-blue-400 uppercase tracking-widest">{user.username ? '@' + user.username : user.id}</p>
-                                    </div>
-                                    <button onClick={() => copyToClipboard(user.username ? '@' + user.username : user.id.toString())} className="p-2.5 rounded-xl bg-white/10 active:bg-white/20 transition-all text-white">
-                                        <Copy size={16} />
-                                    </button>
-                                </div>
-
-                                <button 
-                                    onClick={handleShareReferral}
-                                    className="w-full py-4 rounded-2xl bg-blue-600 text-white flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[11px] active:scale-95 shadow-lg shadow-blue-600/20"
-                                >
-                                    <Share2 size={16} /> Share Now
-                                </button>
-                            </div>
-                        </div>
                         
-                        <div className="card p-5 rounded-3xl flex items-center gap-4 border-l-4 border-l-purple-500">
-                            <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 shadow-sm"><Zap size={20} /></div>
+                        {/* Home page "Earn More" Card redirecting to Telegram Bot */}
+                        <div className="card p-5 rounded-3xl flex items-center gap-4 border-l-4 border-l-purple-500 cursor-pointer active:scale-[0.98]" onClick={() => tg?.openTelegramLink('https://t.me/Rewardsoftware_bot')}>
+                            <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 shadow-sm"><Bot size={20} /></div>
                             <div className="flex-1">
-                                <h4 className="font-bold text-sm tracking-tight text-black">Reward Stations</h4>
-                                <p className="text-xs text-gray-500">Claim: ${adReward} every {adCooldownSec}s</p>
+                                <h4 className="font-bold text-sm tracking-tight text-black">Earn More</h4>
+                                <p className="text-xs text-gray-500">Get extra rewards from our official bot</p>
                             </div>
-                            <button onClick={() => setActiveTab('ads')} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><ChevronRight size={18} /></button>
+                            <div className="bg-gray-100 p-2.5 rounded-xl"><ChevronRight size={18} /></div>
                         </div>
                     </div>
                 )}
@@ -727,7 +587,6 @@ const App = () => {
                                                 <p className="text-sm font-black text-black">{u.name}</p>
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-[10px] text-blue-600 font-bold">@{u.username || 'n/a'}</p>
-                                                    <span className="bg-blue-100 text-blue-700 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Refs: {u.referralCount || 0}</span>
                                                 </div>
                                                 <p className="text-[8px] text-gray-400 font-bold uppercase">BAL: ${u.balance.toFixed(4)}</p>
                                             </div>
@@ -748,13 +607,15 @@ const App = () => {
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn Rewards</h2></header>
                         
                         <div className="grid grid-cols-1 gap-3">
-                            {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
+                            {/* Updated to only show 6 stations as requested */}
+                            {Array.from({ length: 6 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                                 <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-all hover:border-black/10">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center font-black text-white shadow-lg">{idx + 1}</div>
                                         <div>
                                             <p className="font-black text-sm text-black uppercase tracking-tighter">Station {idx + 1}</p>
-                                            <p className="text-[10px] text-green-600 font-bold tracking-widest">USDT YIELD</p>
+                                            {/* Removed 'YIELD' as requested */}
+                                            <p className="text-[10px] text-green-600 font-bold tracking-widest">+${adReward.toFixed(4)} USDT</p>
                                         </div>
                                     </div>
                                     <button 
@@ -815,7 +676,7 @@ const App = () => {
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payout Method</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     <button onClick={() => { setWithdrawNetwork('TON'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'TON' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>USDT Ton</button>
-                                    <button onClick={() => { setWithdrawNetwork('GIFT_CARD'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'GIFT_CARD' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>Giftcard</button>
+                                    <button onClick={() => { setWithdrawNetwork('GIFT_CARD'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'GIFT_CARD' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>Google Play Giftcard</button>
                                     <button onClick={() => { setWithdrawNetwork('UPI'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'UPI' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>UPI</button>
                                 </div>
                             </div>
@@ -826,15 +687,44 @@ const App = () => {
                                 <input 
                                     type="text" 
                                     placeholder={withdrawNetwork === 'TON' ? "Enter Ton Network Address" : withdrawNetwork === 'UPI' ? "Enter UPI number" : "Enter Email Id"} 
-                                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold outline-none" 
+                                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold outline-none text-black" 
                                     value={withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail} 
                                     onChange={(e) => { if(withdrawNetwork === 'TON') setTonAddress(e.target.value); else if(withdrawNetwork === 'UPI') setUpiId(e.target.value); else setGiftCardEmail(e.target.value); }} 
                                 />
                             </div>
                             <div className="flex flex-col gap-2">
                                 <div className="flex justify-between items-center"><label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Amount ({withdrawNetwork === 'TON' ? 'USDT' : 'INR'})</label><span className="text-[9px] text-gray-400 font-bold">Fee: {withdrawNetwork === 'TON' ? `$${gasUsdt}` : '₹0.00'}</span></div>
-                                <div className="relative"><input type="number" placeholder="0.00" className="w-full bg-gray-50 border border-gray-100 rounded-3xl px-6 py-5 text-xl outline-none font-black" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} /></div>
+                                <div className="relative"><input type="number" placeholder="0.00" className="w-full bg-gray-50 border border-gray-100 rounded-3xl px-6 py-5 text-xl outline-none font-black text-black" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} /></div>
                             </div>
+
+                            {/* Payout Rules Section - Colors updated to Pure Black for text */}
+                            <div className="bg-gray-50 rounded-3xl p-5 border border-gray-100 flex flex-col gap-3">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck size={16} className="text-black" />
+                                    <h3 className="text-[10px] font-black text-black uppercase tracking-widest">Payout Rules</h3>
+                                </div>
+                                <ul className="flex flex-col gap-2">
+                                    <li className="flex items-center justify-between">
+                                        <span className="text-[9px] font-bold text-black/60 uppercase">Processing Time</span>
+                                        <span className="text-[9px] font-black text-black uppercase">Within 24 Hours</span>
+                                    </li>
+                                    <li className="flex items-center justify-between">
+                                        <span className="text-[9px] font-bold text-black/60 uppercase">Minimum Payout</span>
+                                        <span className="text-[9px] font-black text-black uppercase">
+                                            {withdrawNetwork === 'TON' ? `${tonMinUsdt} USDT` : withdrawNetwork === 'UPI' ? `₹${upiMinInr}` : `₹${gplayMinInr}`}
+                                        </span>
+                                    </li>
+                                    <li className="flex items-center justify-between">
+                                        <span className="text-[9px] font-bold text-black/60 uppercase">Gas Fee (Network)</span>
+                                        <span className="text-[9px] font-black text-black uppercase">{withdrawNetwork === 'TON' ? `$${gasUsdt} USDT` : '₹0.00'}</span>
+                                    </li>
+                                    <li className="flex items-center justify-between">
+                                        <span className="text-[9px] font-bold text-black/60 uppercase">Security Check</span>
+                                        <span className="text-[9px] font-black text-black uppercase">Automated</span>
+                                    </li>
+                                </ul>
+                            </div>
+
                             <button onClick={handleWithdrawClick} disabled={isWithdrawing} className="w-full py-6 rounded-3xl bg-black text-white flex items-center justify-center gap-4 font-black uppercase tracking-[0.25em] active:scale-95 shadow-xl disabled:opacity-50">{isWithdrawing ? <RefreshCw className="animate-spin" size={20} /> : 'Process Payout'}</button>
                         </div>
                     </div>
@@ -872,7 +762,7 @@ const App = () => {
                     <div className="bg-white w-full max-w-xs rounded-[40px] shadow-2xl p-8 border border-gray-100 flex flex-col items-center text-center gap-4">
                         <div className="w-16 h-16 bg-blue-50 rounded-3xl flex items-center justify-center text-blue-600"><KeyRound size={32} /></div>
                         <h3 className="text-xl font-black tracking-tight uppercase">Console Login</h3>
-                        <input type="password" autoFocus className="w-full bg-gray-50 border rounded-2xl px-5 py-4 text-center font-black tracking-[0.2em] text-lg outline-none" value={inputPasscode} onChange={(e) => setInputPasscode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePasscodeSubmit()} />
+                        <input type="password" autoFocus className="w-full bg-gray-50 border rounded-2xl px-5 py-4 text-center font-black tracking-[0.2em] text-lg outline-none text-black" value={inputPasscode} onChange={(e) => setInputPasscode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handlePasscodeSubmit()} />
                         <button onClick={handlePasscodeSubmit} className="bg-black text-white w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs active:scale-95 shadow-xl">Unlock</button>
                     </div>
                 </div>
