@@ -142,10 +142,22 @@ const App = () => {
                     const existingIdx = prev.findIndex(item => item.id === u.id);
                     if (existingIdx !== -1) {
                         const updated = [...prev];
-                        updated[existingIdx] = { ...updated[existingIdx], username: u.username || '', name: u.first_name };
+                        updated[existingIdx] = { 
+                            ...updated[existingIdx], 
+                            username: u.username || '', 
+                            name: u.first_name,
+                            referralCount: updated[existingIdx].referralCount || 0 
+                        };
                         return updated;
                     }
-                    return [...prev, { id: u.id, name: u.first_name, username: u.username || '', balance: balance, joined: Date.now() }];
+                    return [...prev, { 
+                        id: u.id, 
+                        name: u.first_name, 
+                        username: u.username || '', 
+                        balance: balance, 
+                        referralCount: 0,
+                        joined: Date.now() 
+                    }];
                 });
             }
         }
@@ -217,7 +229,7 @@ const App = () => {
         }
     };
 
-    // Referral System Logic
+    // Referral System Logic - Updated for Dual Rewards
     const handleRedeemReferral = () => {
         if (hasRedeemedReferral) {
             return showMessage("Bonus already claimed", "info");
@@ -228,28 +240,48 @@ const App = () => {
         
         const ownId = user.id.toString();
         const ownUsername = user.username?.toLowerCase() || "";
-        const input = referralInput.trim().toLowerCase().replace('@', '');
+        const inputRaw = referralInput.trim().toLowerCase().replace('@', '');
 
-        if (input === ownId || input === ownUsername) {
+        if (inputRaw === ownId || inputRaw === ownUsername) {
             return showMessage("Cannot use your own code", "error");
         }
 
+        // Logic: Find the referrer in the "Database" (usersList)
+        let referrerFound = false;
+        const updatedUsersList = usersList.map(u => {
+            const isMatch = u.id.toString() === inputRaw || u.username?.toLowerCase() === inputRaw;
+            if (isMatch) {
+                referrerFound = true;
+                return {
+                    ...u,
+                    balance: fromCents(toCents(u.balance) + toCents(REFERRAL_BONUS)),
+                    referralCount: (u.referralCount || 0) + 1
+                };
+            }
+            return u;
+        });
+
+        // Even if referrer isn't in usersList yet (simulated logic), we still reward the current user
         const now = Date.now();
         setBalance(prev => fromCents(toCents(prev) + toCents(REFERRAL_BONUS)));
         setHasRedeemedReferral(true);
         setEarningsHistory(prev => [{ 
             id: Math.random().toString(36).substr(2, 9), 
-            source: `REFERRAL BONUS (@${input})`, 
+            source: `REFERRAL BONUS (@${inputRaw})`, 
             amount: REFERRAL_BONUS, 
             timestamp: now 
         }, ...prev]);
         
-        setUsersList(prev => prev.map(u => u.id === user.id ? { 
+        // Update local usersList for admin tracking
+        const finalUsersList = updatedUsersList.map(u => u.id === user.id ? { 
             ...u, 
             balance: fromCents(toCents(u.balance) + toCents(REFERRAL_BONUS)), 
-        } : u));
+        } : u);
+        
+        setUsersList(finalUsersList);
 
-        showMessage(`Success! +$${REFERRAL_BONUS} Bonus`, "success");
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        showMessage(`Dual Bonus! You & Referrer got $${REFERRAL_BONUS}`, "success");
         setReferralInput("");
     };
 
@@ -593,6 +625,121 @@ const App = () => {
                             </div>
                             <button onClick={() => setActiveTab('ads')} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><ChevronRight size={18} /></button>
                         </div>
+                    </div>
+                )}
+
+                {isAdminView && isUserAdmin && (
+                    <div className="flex flex-col gap-6 animate-fadeIn pb-20">
+                        <header className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center text-white font-black text-lg">R</div>
+                                <div>
+                                    <h2 className="text-xl font-black uppercase tracking-tight leading-none text-black">Admin Panel</h2>
+                                    <p className="text-[10px] font-bold text-blue-600 uppercase">Adsgptpro 2 Console</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsAdminView(false)} className="bg-gray-100 p-2.5 rounded-xl active:scale-95"><X size={20} /></button>
+                        </header>
+
+                        <div className="flex gap-2 overflow-x-auto hide-scrollbar">
+                            {(['dashboard', 'withdrawals', 'users', 'settings'] as const).map(tab => (
+                                <button key={tab} onClick={() => setAdminSubTab(tab)} className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase whitespace-nowrap transition-all ${adminSubTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 text-gray-400'}`}>
+                                    {tab === 'dashboard' && <LayoutDashboard size={14}/>}
+                                    {tab === 'withdrawals' && <Landmark size={14}/>}
+                                    {tab === 'users' && <Users size={14}/>}
+                                    {tab === 'settings' && <Settings size={14}/>}
+                                    {tab}
+                                </button>
+                            ))}
+                        </div>
+
+                        {adminSubTab === 'dashboard' && (
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-black p-5 rounded-[32px] text-white flex flex-col gap-1 shadow-xl">
+                                    <p className="text-[10px] font-black opacity-60 uppercase tracking-widest">Global Bal</p>
+                                    <p className="text-2xl font-black">${adminAnalytics.totalSystemBalance.toFixed(2)}</p>
+                                </div>
+                                <div className="bg-green-50 p-5 rounded-[32px] flex flex-col gap-1 border border-green-100">
+                                    <p className="text-[10px] font-black text-green-700 uppercase tracking-widest">Paid Out</p>
+                                    <p className="text-2xl font-black text-green-800">${adminAnalytics.totalPaid.toFixed(2)}</p>
+                                </div>
+                                <div className="bg-blue-50 p-5 rounded-[32px] flex flex-col gap-1 border border-blue-100 col-span-2">
+                                    <p className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Total Logs</p>
+                                    <p className="text-2xl font-black text-blue-800">{adminAnalytics.totalRequestCount} REQUESTS</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {adminSubTab === 'withdrawals' && (
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center px-2">
+                                    <h3 className="text-lg font-black text-black">Payout Queue ({adminAnalytics.pendingCount})</h3>
+                                    <div className="flex p-1 bg-gray-100 rounded-xl">
+                                        {(['ALL', 'PENDING', 'PAID', 'REJECTED'] as const).map(f => (
+                                            <button key={f} onClick={() => setAdminWithdrawalFilter(f)} className={`px-3 py-1.5 text-[9px] font-black rounded-lg transition-all ${adminWithdrawalFilter === f ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-400'}`}>{f}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-4">
+                                    {filteredWithdrawalsForAdmin.length === 0 ? (
+                                        <div className="text-center py-20 bg-gray-50 rounded-[40px] border border-dashed text-gray-400 text-xs font-bold uppercase">Queue empty</div>
+                                    ) : (
+                                        filteredWithdrawalsForAdmin.map((w: any) => (
+                                            <div key={w.id} className={`card p-5 rounded-[32px] border-l-4 ${w.status === 'PAID' ? 'border-l-green-500' : w.status === 'REJECTED' ? 'border-l-red-500' : 'border-l-yellow-500 shadow-xl'}`}>
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <p className="text-sm font-black text-black">{w.user_name}</p>
+                                                        <p className="text-[9px] font-bold text-gray-400 uppercase">UID: {w.user_id}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-black text-black">${w.amount.toFixed(4)}</p>
+                                                        <p className="text-[10px] font-black text-green-600">{w.netPayoutINR ? `₹${w.netPayoutINR.toFixed(2)}` : `$${w.netPayout.toFixed(4)}`}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-2xl mb-4 text-[10px] font-mono break-all text-black flex items-center justify-between group" onClick={() => copyToClipboard(w.address)}>
+                                                    <span>{w.address}</span>
+                                                    <Copy size={12} className="text-gray-400 opacity-0 group-hover:opacity-100" />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {w.status === 'PENDING' && (
+                                                        <>
+                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'PAID')} className="flex-1 py-3.5 rounded-2xl bg-green-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-md">Pay</button>
+                                                            <button onClick={() => updateWithdrawalStatus([w.id], 'REJECTED')} className="flex-1 py-3.5 rounded-2xl bg-red-600 text-white text-[10px] font-black uppercase active:scale-95 shadow-md">Reject</button>
+                                                        </>
+                                                    )}
+                                                    <button onClick={() => deleteWithdrawal(w.id)} className="w-12 h-12 rounded-2xl bg-gray-50 text-gray-400 flex items-center justify-center active:text-red-500 border border-gray-100"><Trash2 size={16} /></button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {adminSubTab === 'users' && (
+                            <div className="space-y-3">
+                                <h3 className="text-lg font-black text-black px-2">Members ({adminAnalytics.activeUsersCount})</h3>
+                                {usersList.map((u: any) => (
+                                    <div key={u.id} className="card p-4 rounded-[28px] flex items-center justify-between border-l-4 border-l-blue-600">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black uppercase text-sm">{u.name ? u.name[0] : '?'}</div>
+                                            <div>
+                                                <p className="text-sm font-black text-black">{u.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[10px] text-blue-600 font-bold">@{u.username || 'n/a'}</p>
+                                                    <span className="bg-blue-100 text-blue-700 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Refs: {u.referralCount || 0}</span>
+                                                </div>
+                                                <p className="text-[8px] text-gray-400 font-bold uppercase">BAL: ${u.balance.toFixed(4)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-1.5">
+                                            <button onClick={() => adjustUserBalance(u.id, 0.50)} className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100"><PlusCircle size={18}/></button>
+                                            <button onClick={() => adjustUserBalance(u.id, -0.50)} className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100"><MinusCircle size={18}/></button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
