@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
   Home, Wallet, History, Clock, Landmark, X, AlertCircle, CheckCircle2, 
@@ -74,6 +75,10 @@ const App = () => {
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [historySubTab, setHistorySubTab] = useState('earnings');
 
+    // Tads Controller Reference
+    const tadsControllerRef = useRef<any>(null);
+    const pendingAdRewardRef = useRef<string | null>(null);
+
     const isUserAdmin = useMemo(() => {
         return user.id === AUTHORIZED_ADMIN_ID || isPasscodeAuthenticated;
     }, [user.id, isPasscodeAuthenticated]);
@@ -101,6 +106,47 @@ const App = () => {
         localStorage.setItem('cfg_gplayMinInr', gplayMinInr.toString());
         localStorage.setItem('cfg_gasUsdt', gasUsdt.toString());
     }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed, task3Claimed]);
+
+    // Initialize Tads.me
+    useEffect(() => {
+        const initTads = () => {
+            // Fix: Use type casting to access 'tads' on window object to resolve TS error
+            if ((window as any).tads && !tadsControllerRef.current) {
+                const adsNotFoundCallback = () => {
+                    console.log('No ads found to show');
+                    showMessage('No ads available right now', 'info');
+                };
+
+                const onClickRewardCallback = (adId: string) => {
+                    console.log('Clicked ad:', adId);
+                    if (pendingAdRewardRef.current) {
+                        rewardUser(pendingAdRewardRef.current);
+                        pendingAdRewardRef.current = null;
+                    }
+                };
+
+                // Fix: Use type casting to access 'tads' on window object to resolve TS error
+                tadsControllerRef.current = (window as any).tads.init({
+                    widgetId: 8914,
+                    type: 'static',
+                    containerId: 'tads-container-8914',
+                    debug: false, 
+                    onClickReward: onClickRewardCallback,
+                    onAdsNotFound: adsNotFoundCallback
+                });
+            }
+        };
+
+        const interval = setInterval(() => {
+            // Fix: Use type casting to access 'tads' on window object to resolve TS error
+            if ((window as any).tads) {
+                initTads();
+                clearInterval(interval);
+            }
+        }, 500);
+
+        return () => clearInterval(interval);
+    }, []);
 
     // Automatic Status Update (PENDING -> PAID after 24H)
     useEffect(() => {
@@ -263,33 +309,55 @@ const App = () => {
         }
     };
 
+    // Reward User Logic
+    const rewardUser = (adId: string) => {
+        const now = Date.now();
+        const rewardAmount = adReward;
+        setBalance(prev => fromCents(toCents(prev) + toCents(rewardAmount)));
+        setAdCooldowns(prev => ({ ...prev, [adId]: now + (adCooldownSec * 1000) }));
+        setEarningsHistory(prev => [{ 
+            id: Math.random().toString(36).substr(2, 9), 
+            source: `AD SLOT ${adId.replace('ads', '')}`, 
+            amount: rewardAmount, 
+            timestamp: now 
+        }, ...prev]);
+        setUsersList(prev => prev.map(u => u.id === user.id ? { 
+            ...u, 
+            balance: fromCents(toCents(u.balance) + toCents(rewardAmount)), 
+        } : u));
+        showMessage(`Success! +$${rewardAmount.toFixed(4)}`, 'success');
+    };
+
     // User Actions
     const handleWatchAd = (adId: string) => {
         if (adCooldowns[adId] > currentTime) return;
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-        const rewardUser = () => {
-            const now = Date.now();
-            const rewardAmount = adReward;
-            setBalance(prev => fromCents(toCents(prev) + toCents(rewardAmount)));
-            setAdCooldowns(prev => ({ ...prev, [adId]: now + (adCooldownSec * 1000) }));
-            setEarningsHistory(prev => [{ 
-                id: Math.random().toString(36).substr(2, 9), 
-                source: `AD SLOT ${adId.replace('ads', '')}`, 
-                amount: rewardAmount, 
-                timestamp: now 
-            }, ...prev]);
-            setUsersList(prev => prev.map(u => u.id === user.id ? { 
-                ...u, 
-                balance: fromCents(toCents(u.balance) + toCents(rewardAmount)), 
-            } : u));
-            showMessage(`Success! +$${rewardAmount.toFixed(4)}`, 'success');
-        };
-
-        const adFn = (window as any).show_10380842;
-        if (typeof adFn === 'function') {
-            try { adFn().then(rewardUser).catch(() => rewardUser()); } catch (e) { rewardUser(); }
-        } else { rewardUser(); }
+        if (tadsControllerRef.current) {
+            pendingAdRewardRef.current = adId;
+            showMessage('Loading ad...', 'info');
+            tadsControllerRef.current.loadAd()
+                .then(() => {
+                    console.log('Ad loaded successfully');
+                    return tadsControllerRef.current.showAd();
+                })
+                .catch((err: any) => {
+                    console.error('Ad Error:', err);
+                    // Fallback to legacy ad if tads fails
+                    const adFn = (window as any).show_10380842;
+                    if (typeof adFn === 'function') {
+                        adFn().then(() => rewardUser(adId)).catch(() => rewardUser(adId));
+                    } else {
+                        rewardUser(adId);
+                    }
+                });
+        } else {
+            // Original legacy ad logic
+            const adFn = (window as any).show_10380842;
+            if (typeof adFn === 'function') {
+                try { adFn().then(() => rewardUser(adId)).catch(() => rewardUser(adId)); } catch (e) { rewardUser(adId); }
+            } else { rewardUser(adId); }
+        }
     };
 
     const handleClaimTask = (taskId: number, url: string, amount: number) => {
@@ -596,6 +664,9 @@ const App = () => {
                     <div className="flex flex-col gap-4 animate-fadeIn">
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn USDT</h2></header>
                         
+                        {/* Tads Ad Container */}
+                        <div id="tads-container-8914"></div>
+
                         {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                             <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform">
                                 <div className="flex items-center gap-4">
