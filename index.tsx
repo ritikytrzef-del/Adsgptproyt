@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { 
@@ -110,7 +109,6 @@ const App = () => {
     // Initialize Tads.me
     useEffect(() => {
         const initTads = () => {
-            // Fix: Use type casting to access 'tads' on window object to resolve TS error
             if ((window as any).tads && !tadsControllerRef.current) {
                 const adsNotFoundCallback = () => {
                     console.log('No ads found to show');
@@ -125,7 +123,6 @@ const App = () => {
                     }
                 };
 
-                // Fix: Use type casting to access 'tads' on window object to resolve TS error
                 tadsControllerRef.current = (window as any).tads.init({
                     widgetId: 8914,
                     type: 'static',
@@ -138,7 +135,6 @@ const App = () => {
         };
 
         const interval = setInterval(() => {
-            // Fix: Use type casting to access 'tads' on window object to resolve TS error
             if ((window as any).tads) {
                 initTads();
                 clearInterval(interval);
@@ -343,20 +339,10 @@ const App = () => {
                 })
                 .catch((err: any) => {
                     console.error('Ad Error:', err);
-                    // Fallback to legacy ad if tads fails
-                    const adFn = (window as any).show_10380842;
-                    if (typeof adFn === 'function') {
-                        adFn().then(() => rewardUser(adId)).catch(() => rewardUser(adId));
-                    } else {
-                        rewardUser(adId);
-                    }
+                    showMessage('Ad failed to load. Please try again later.', 'error');
                 });
         } else {
-            // Original legacy ad logic
-            const adFn = (window as any).show_10380842;
-            if (typeof adFn === 'function') {
-                try { adFn().then(() => rewardUser(adId)).catch(() => rewardUser(adId)); } catch (e) { rewardUser(adId); }
-            } else { rewardUser(adId); }
+            showMessage('Ad controller not ready. Please wait.', 'info');
         }
     };
 
