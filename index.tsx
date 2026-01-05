@@ -112,7 +112,7 @@ const App = () => {
         if ((window as any).tads && document.getElementById('tads-container-8914')) {
             const adsNotFoundCallback = () => {
                 console.log('No ads found to show');
-                showMessage('Inventory busy. Try again.', 'info');
+                // No showMessage here to avoid annoying spam if inventory is low
             };
 
             const onClickRewardCallback = (adId: string) => {
@@ -123,15 +123,20 @@ const App = () => {
                 }
             };
 
-            tadsControllerRef.current = (window as any).tads.init({
-                widgetId: 8914,
-                type: 'static',
-                containerId: 'tads-container-8914',
-                debug: false, 
-                onClickReward: onClickRewardCallback,
-                onAdsNotFound: adsNotFoundCallback
-            });
-            return true;
+            try {
+                tadsControllerRef.current = (window as any).tads.init({
+                    widgetId: 8914,
+                    type: 'static',
+                    containerId: 'tads-container-8914',
+                    debug: false, 
+                    onClickReward: onClickRewardCallback,
+                    onAdsNotFound: adsNotFoundCallback
+                });
+                return true;
+            } catch (e) {
+                console.error('Tads Init Error:', e);
+                return false;
+            }
         }
         return false;
     };
@@ -139,18 +144,16 @@ const App = () => {
     // Trigger Tads Init when entering Ads tab
     useEffect(() => {
         if (activeTab === 'ads') {
-            // Short delay to ensure DOM is ready
             const timer = setTimeout(() => {
                 const success = initTads();
                 if (!success) {
-                   // Poll a few times if not ready
                    let attempts = 0;
                    const interval = setInterval(() => {
                        attempts++;
-                       if (initTads() || attempts > 5) clearInterval(interval);
+                       if (initTads() || attempts > 10) clearInterval(interval);
                    }, 500);
                 }
-            }, 100);
+            }, 200);
             return () => clearTimeout(timer);
         }
     }, [activeTab]);
@@ -343,14 +346,22 @@ const App = () => {
         if (!tadsControllerRef.current) {
             const success = initTads();
             if (!success) {
-                showMessage('Loading ad engine...', 'info');
+                showMessage('Ad Engine not ready. Wait 2s.', 'info');
                 return;
             }
         }
 
         setLoadingAdId(adId);
         pendingAdRewardRef.current = adId;
+        showMessage('Requesting Ad...', 'info');
         
+        // Ensure container is definitely visible
+        const container = document.getElementById('tads-container-8914');
+        if (container) {
+            container.style.display = 'block';
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
         tadsControllerRef.current.loadAd()
             .then(() => {
                 console.log('Ad loaded successfully');
@@ -360,9 +371,17 @@ const App = () => {
                 setLoadingAdId(null);
             })
             .catch((err: any) => {
-                console.error('Ad Error:', err);
+                console.error('Detailed Ad Error:', err);
                 setLoadingAdId(null);
-                showMessage('Ad failed. Check connection.', 'error');
+                
+                // Try to extract specific reason
+                let errorMsg = 'Ad failed. Check connection.';
+                if (err && err.message) {
+                    if (err.message.includes('No inventory')) errorMsg = 'No ads available right now.';
+                    else if (err.message.includes('timeout')) errorMsg = 'Ad timeout. Try again.';
+                }
+                
+                showMessage(errorMsg, 'error');
             });
     };
 
@@ -671,8 +690,14 @@ const App = () => {
                     <div className="flex flex-col gap-4 animate-fadeIn">
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn USDT</h2></header>
                         
-                        {/* Tads Ad Container */}
-                        <div id="tads-container-8914" className="min-h-[50px] bg-gray-50 rounded-xl"></div>
+                        {/* Tads Ad Container - Ensure it has a visible frame and min-height */}
+                        <div 
+                            id="tads-container-8914" 
+                            className="min-h-[100px] w-full bg-gray-50 rounded-3xl border border-dashed border-gray-200 flex items-center justify-center relative overflow-hidden"
+                            style={{ display: 'block' }}
+                        >
+                            <div className="text-[10px] text-gray-300 font-black uppercase tracking-widest absolute inset-0 flex items-center justify-center pointer-events-none">Ad Placement</div>
+                        </div>
 
                         {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                             <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform">
