@@ -13,6 +13,7 @@ const ADMIN_CHAT_ID = "6601027952";
 const BOT_TOKEN = "8511554119:AAGAQLkLPEsX3KHCNk5hfkK8ok1pM_qiQm4";
 const SECRET_ADMIN_PASSCODE = "REWARD_SOFTWARE_PRO_ADMIN_ULTRA_LONG_SECURE_PASSCODE_2025_ACCESS_GRANTED_7952"; 
 const AUTO_PAID_TIMEOUT = 24 * 60 * 60 * 1000; // 24 Hours in ms
+const TADS_WIDGET_ID = 8914;
 
 // Helper to avoid floating point issues
 const toCents = (val: number | string) => Math.round(parseFloat(val.toString()) * 1000000);
@@ -109,26 +110,27 @@ const App = () => {
 
     // Initialize Tads.me helper
     const initTads = () => {
-        if ((window as any).tads && document.getElementById('tads-container-8914')) {
-            const adsNotFoundCallback = () => {
-                console.log('No ads found to show');
-                // No showMessage here to avoid annoying spam if inventory is low
-            };
+        if ((window as any).tads) {
+            const container = document.getElementById(`tads-container-${TADS_WIDGET_ID}`);
+            if (!container) return false;
 
             const onClickRewardCallback = (adId: string) => {
-                console.log('Clicked ad:', adId);
                 if (pendingAdRewardRef.current) {
                     rewardUser(pendingAdRewardRef.current);
                     pendingAdRewardRef.current = null;
                 }
             };
 
+            const adsNotFoundCallback = () => {
+                console.log('Tads.me: Ad inventory empty');
+            };
+
             try {
                 tadsControllerRef.current = (window as any).tads.init({
-                    widgetId: 8914,
+                    widgetId: TADS_WIDGET_ID,
                     type: 'static',
-                    containerId: 'tads-container-8914',
-                    debug: false, 
+                    containerId: `tads-container-${TADS_WIDGET_ID}`,
+                    debug: false, // REAL ADS MODE
                     onClickReward: onClickRewardCallback,
                     onAdsNotFound: adsNotFoundCallback
                 });
@@ -145,15 +147,14 @@ const App = () => {
     useEffect(() => {
         if (activeTab === 'ads') {
             const timer = setTimeout(() => {
-                const success = initTads();
-                if (!success) {
+                if (!initTads()) {
                    let attempts = 0;
                    const interval = setInterval(() => {
                        attempts++;
-                       if (initTads() || attempts > 10) clearInterval(interval);
-                   }, 500);
+                       if (initTads() || attempts > 20) clearInterval(interval);
+                   }, 300);
                 }
-            }, 200);
+            }, 100);
             return () => clearTimeout(timer);
         }
     }, [activeTab]);
@@ -344,43 +345,37 @@ const App = () => {
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
         if (!tadsControllerRef.current) {
-            const success = initTads();
-            if (!success) {
-                showMessage('Ad Engine not ready. Wait 2s.', 'info');
+            initTads();
+            if (!tadsControllerRef.current) {
+                showMessage('Ad Engine starting...', 'info');
                 return;
             }
         }
 
         setLoadingAdId(adId);
         pendingAdRewardRef.current = adId;
-        showMessage('Requesting Ad...', 'info');
+        showMessage('Searching for Ads...', 'info');
         
-        // Ensure container is definitely visible
-        const container = document.getElementById('tads-container-8914');
+        const container = document.getElementById(`tads-container-${TADS_WIDGET_ID}`);
         if (container) {
-            container.style.display = 'block';
             container.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         tadsControllerRef.current.loadAd()
             .then(() => {
-                console.log('Ad loaded successfully');
                 return tadsControllerRef.current.showAd();
             })
             .then(() => {
                 setLoadingAdId(null);
             })
             .catch((err: any) => {
-                console.error('Detailed Ad Error:', err);
+                console.error('Tads Error:', err);
                 setLoadingAdId(null);
                 
-                // Try to extract specific reason
-                let errorMsg = 'Ad failed. Check connection.';
+                let errorMsg = 'No ads available now. Please try again later.';
                 if (err && err.message) {
-                    if (err.message.includes('No inventory')) errorMsg = 'No ads available right now.';
-                    else if (err.message.includes('timeout')) errorMsg = 'Ad timeout. Try again.';
+                    if (err.message.includes('timeout')) errorMsg = 'Ad request timed out. Retrying...';
                 }
-                
                 showMessage(errorMsg, 'error');
             });
     };
@@ -493,7 +488,7 @@ const App = () => {
     };
 
     const getCooldownText = (adId: string) => {
-        if (loadingAdId === adId) return 'Loading...';
+        if (loadingAdId === adId) return 'Searching...';
         const remaining = (adCooldowns[adId] || 0) - currentTime;
         if (remaining <= 0) return 'Watch Ad';
         const mins = Math.floor(remaining / 60000);
@@ -690,36 +685,37 @@ const App = () => {
                     <div className="flex flex-col gap-4 animate-fadeIn">
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn USDT</h2></header>
                         
-                        {/* Tads Ad Container - Ensure it has a visible frame and min-height */}
+                        {/* Real Ad Placement */}
                         <div 
-                            id="tads-container-8914" 
-                            className="min-h-[100px] w-full bg-gray-50 rounded-3xl border border-dashed border-gray-200 flex items-center justify-center relative overflow-hidden"
-                            style={{ display: 'block' }}
+                            id={`tads-container-${TADS_WIDGET_ID}`} 
+                            className="min-h-[120px] w-full bg-gray-50 rounded-[32px] border border-dashed border-gray-200 flex items-center justify-center relative overflow-hidden shadow-inner"
                         >
-                            <div className="text-[10px] text-gray-300 font-black uppercase tracking-widest absolute inset-0 flex items-center justify-center pointer-events-none">Ad Placement</div>
+                            <div className="text-[10px] text-gray-300 font-black uppercase tracking-[0.2em] absolute inset-0 flex items-center justify-center pointer-events-none">Waiting for Ad...</div>
                         </div>
 
-                        {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
-                            <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center font-black text-white">{idx + 1}</div>
-                                    <div>
-                                        <p className="font-black text-sm text-black uppercase tracking-tighter">Station {idx + 1}</p>
-                                        <p className="text-[10px] text-green-600 font-bold">+${adReward.toFixed(4)}</p>
+                        <div className="grid grid-cols-1 gap-3">
+                            {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
+                                <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-all hover:border-black/10">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center font-black text-white shadow-lg">{idx + 1}</div>
+                                        <div>
+                                            <p className="font-black text-sm text-black uppercase tracking-tighter">Station {idx + 1}</p>
+                                            <p className="text-[10px] text-green-600 font-bold tracking-widest">REAL AD YIELD</p>
+                                        </div>
                                     </div>
+                                    <button 
+                                        disabled={adCooldowns[id] > currentTime || (loadingAdId === id)} 
+                                        onClick={() => handleWatchAd(id)} 
+                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${adCooldowns[id] > currentTime ? 'bg-gray-100 text-gray-400' : 'bg-black text-white shadow-xl active:scale-95'} ${(loadingAdId === id) ? 'opacity-50' : ''}`}
+                                    >
+                                        {getCooldownText(id)}
+                                    </button>
                                 </div>
-                                <button 
-                                    disabled={adCooldowns[id] > currentTime || (loadingAdId === id)} 
-                                    onClick={() => handleWatchAd(id)} 
-                                    className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${adCooldowns[id] > currentTime ? 'bg-gray-100 text-gray-400' : 'bg-black text-white shadow-xl active:scale-95'} ${(loadingAdId === id) ? 'opacity-50' : ''}`}
-                                >
-                                    {getCooldownText(id)}
-                                </button>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
 
                         <div className="h-4"></div>
-                        <h3 className="text-xl font-black uppercase tracking-tight text-black px-2">Reward Tasks</h3>
+                        <h3 className="text-xl font-black uppercase tracking-tight text-black px-2">Global Rewards</h3>
 
                         <div className="card p-6 rounded-[32px] bg-gradient-to-br from-indigo-600 to-purple-700 text-white relative overflow-hidden shadow-2xl">
                             <div className="relative z-10 flex flex-col gap-4">
@@ -746,19 +742,6 @@ const App = () => {
                                 </div>
                             </div>
                         </div>
-
-                        <div className="card p-6 rounded-[32px] bg-gradient-to-br from-purple-500 to-pink-600 text-white relative overflow-hidden shadow-2xl">
-                            <div className="relative z-10 flex flex-col gap-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center"><Gift size={24} className="text-white" /></div>
-                                    <h3 className="font-black text-lg uppercase tracking-tight">Bonus Channel</h3>
-                                </div>
-                                <div className="flex justify-between items-center mt-2">
-                                    <div className="text-2xl font-black">+$5.00</div>
-                                    <button onClick={() => handleClaimTask(3, 'https://t.me/Rewardsoftware_', 5)} disabled={task3Claimed} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all ${task3Claimed ? 'bg-green-500' : 'bg-white text-purple-600'}`}>{task3Claimed ? 'Claimed ✓' : 'Complete'}</button>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 )}
 
@@ -778,13 +761,13 @@ const App = () => {
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payout Method</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     <button onClick={() => { setWithdrawNetwork('TON'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'TON' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>USDT Ton</button>
-                                    <button onClick={() => { setWithdrawNetwork('GIFT_CARD'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'GIFT_CARD' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>Google play giftcard</button>
+                                    <button onClick={() => { setWithdrawNetwork('GIFT_CARD'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'GIFT_CARD' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>Giftcard</button>
                                     <button onClick={() => { setWithdrawNetwork('UPI'); setWithdrawAmount(''); }} className={`py-3.5 rounded-2xl text-[9px] font-black border uppercase tracking-widest transition-all ${withdrawNetwork === 'UPI' ? 'border-black bg-black text-white shadow-lg' : 'border-gray-100 bg-gray-50 text-gray-400'}`}>UPI</button>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                    {withdrawNetwork === 'TON' ? 'Enter Ton Network Address' : withdrawNetwork === 'UPI' ? 'Enter UPI number' : 'Enter Email Id'}
+                                    {withdrawNetwork === 'TON' ? 'Address' : withdrawNetwork === 'UPI' ? 'UPI ID' : 'Email Address'}
                                 </label>
                                 <input 
                                     type="text" 
