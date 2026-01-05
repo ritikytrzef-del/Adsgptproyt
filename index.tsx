@@ -53,6 +53,7 @@ const App = () => {
     const [giftCardEmail, setGiftCardEmail] = useState(() => localStorage.getItem('giftCardEmail') || '');
     const [adCooldowns, setAdCooldowns] = useState<Record<string, number>>(() => JSON.parse(localStorage.getItem('adCooldowns') || '{}'));
     const [currentTime, setCurrentTime] = useState(Date.now());
+    const [loadingAdId, setLoadingAdId] = useState<string | null>(null);
     
     // Tasks
     const [task1Claimed, setTask1Claimed] = useState(() => localStorage.getItem('task1Claimed') === 'true');
@@ -106,43 +107,53 @@ const App = () => {
         localStorage.setItem('cfg_gasUsdt', gasUsdt.toString());
     }, [balance, earningsHistory, withdrawalHistory, adCooldowns, tonAddress, upiId, giftCardEmail, exchangeRate, usersList, adReward, adCooldownSec, tonMinUsdt, upiMinInr, gplayMinInr, gasUsdt, isPasscodeAuthenticated, task1Claimed, task2Claimed, task3Claimed]);
 
-    // Initialize Tads.me
+    // Initialize Tads.me helper
+    const initTads = () => {
+        if ((window as any).tads && document.getElementById('tads-container-8914')) {
+            const adsNotFoundCallback = () => {
+                console.log('No ads found to show');
+                showMessage('Inventory busy. Try again.', 'info');
+            };
+
+            const onClickRewardCallback = (adId: string) => {
+                console.log('Clicked ad:', adId);
+                if (pendingAdRewardRef.current) {
+                    rewardUser(pendingAdRewardRef.current);
+                    pendingAdRewardRef.current = null;
+                }
+            };
+
+            tadsControllerRef.current = (window as any).tads.init({
+                widgetId: 8914,
+                type: 'static',
+                containerId: 'tads-container-8914',
+                debug: false, 
+                onClickReward: onClickRewardCallback,
+                onAdsNotFound: adsNotFoundCallback
+            });
+            return true;
+        }
+        return false;
+    };
+
+    // Trigger Tads Init when entering Ads tab
     useEffect(() => {
-        const initTads = () => {
-            if ((window as any).tads && !tadsControllerRef.current) {
-                const adsNotFoundCallback = () => {
-                    console.log('No ads found to show');
-                    showMessage('No ads available right now', 'info');
-                };
-
-                const onClickRewardCallback = (adId: string) => {
-                    console.log('Clicked ad:', adId);
-                    if (pendingAdRewardRef.current) {
-                        rewardUser(pendingAdRewardRef.current);
-                        pendingAdRewardRef.current = null;
-                    }
-                };
-
-                tadsControllerRef.current = (window as any).tads.init({
-                    widgetId: 8914,
-                    type: 'static',
-                    containerId: 'tads-container-8914',
-                    debug: false, 
-                    onClickReward: onClickRewardCallback,
-                    onAdsNotFound: adsNotFoundCallback
-                });
-            }
-        };
-
-        const interval = setInterval(() => {
-            if ((window as any).tads) {
-                initTads();
-                clearInterval(interval);
-            }
-        }, 500);
-
-        return () => clearInterval(interval);
-    }, []);
+        if (activeTab === 'ads') {
+            // Short delay to ensure DOM is ready
+            const timer = setTimeout(() => {
+                const success = initTads();
+                if (!success) {
+                   // Poll a few times if not ready
+                   let attempts = 0;
+                   const interval = setInterval(() => {
+                       attempts++;
+                       if (initTads() || attempts > 5) clearInterval(interval);
+                   }, 500);
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [activeTab]);
 
     // Automatic Status Update (PENDING -> PAID after 24H)
     useEffect(() => {
@@ -326,24 +337,33 @@ const App = () => {
 
     // User Actions
     const handleWatchAd = (adId: string) => {
-        if (adCooldowns[adId] > currentTime) return;
+        if (adCooldowns[adId] > currentTime || loadingAdId) return;
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
-        if (tadsControllerRef.current) {
-            pendingAdRewardRef.current = adId;
-            showMessage('Loading ad...', 'info');
-            tadsControllerRef.current.loadAd()
-                .then(() => {
-                    console.log('Ad loaded successfully');
-                    return tadsControllerRef.current.showAd();
-                })
-                .catch((err: any) => {
-                    console.error('Ad Error:', err);
-                    showMessage('Ad failed to load. Please try again later.', 'error');
-                });
-        } else {
-            showMessage('Ad controller not ready. Please wait.', 'info');
+        if (!tadsControllerRef.current) {
+            const success = initTads();
+            if (!success) {
+                showMessage('Loading ad engine...', 'info');
+                return;
+            }
         }
+
+        setLoadingAdId(adId);
+        pendingAdRewardRef.current = adId;
+        
+        tadsControllerRef.current.loadAd()
+            .then(() => {
+                console.log('Ad loaded successfully');
+                return tadsControllerRef.current.showAd();
+            })
+            .then(() => {
+                setLoadingAdId(null);
+            })
+            .catch((err: any) => {
+                console.error('Ad Error:', err);
+                setLoadingAdId(null);
+                showMessage('Ad failed. Check connection.', 'error');
+            });
     };
 
     const handleClaimTask = (taskId: number, url: string, amount: number) => {
@@ -454,6 +474,7 @@ const App = () => {
     };
 
     const getCooldownText = (adId: string) => {
+        if (loadingAdId === adId) return 'Loading...';
         const remaining = (adCooldowns[adId] || 0) - currentTime;
         if (remaining <= 0) return 'Watch Ad';
         const mins = Math.floor(remaining / 60000);
@@ -651,7 +672,7 @@ const App = () => {
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn USDT</h2></header>
                         
                         {/* Tads Ad Container */}
-                        <div id="tads-container-8914"></div>
+                        <div id="tads-container-8914" className="min-h-[50px] bg-gray-50 rounded-xl"></div>
 
                         {Array.from({ length: 10 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                             <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-transform">
@@ -662,7 +683,13 @@ const App = () => {
                                         <p className="text-[10px] text-green-600 font-bold">+${adReward.toFixed(4)}</p>
                                     </div>
                                 </div>
-                                <button disabled={adCooldowns[id] > currentTime} onClick={() => handleWatchAd(id)} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${adCooldowns[id] > currentTime ? 'bg-gray-100 text-gray-400' : 'bg-black text-white shadow-xl active:scale-95'}`}>{getCooldownText(id)}</button>
+                                <button 
+                                    disabled={adCooldowns[id] > currentTime || (loadingAdId === id)} 
+                                    onClick={() => handleWatchAd(id)} 
+                                    className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${adCooldowns[id] > currentTime ? 'bg-gray-100 text-gray-400' : 'bg-black text-white shadow-xl active:scale-95'} ${(loadingAdId === id) ? 'opacity-50' : ''}`}
+                                >
+                                    {getCooldownText(id)}
+                                </button>
                             </div>
                         ))}
 
