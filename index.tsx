@@ -4,7 +4,7 @@ import {
   Home, Wallet, History, Clock, Landmark, X, AlertCircle, CheckCircle2, 
   ShieldCheck, Shield, ChevronRight, Users, Zap, IndianRupee, RefreshCw, 
   Settings, MinusCircle, PlusCircle, LayoutDashboard, KeyRound, Copy, 
-  Search, Bot, Trash2, Megaphone, Gift, Info, Share2, UserPlus
+  Search, Bot, Trash2, Megaphone, Gift, Info, Share2, UserPlus, CreditCard, Star
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -35,7 +35,7 @@ const App = () => {
     const [adminSubTab, setAdminSubTab] = useState<'dashboard' | 'withdrawals' | 'users' | 'settings'>('dashboard');
     const [adminWithdrawalFilter, setAdminWithdrawalFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'REJECTED'>('PENDING');
     
-    // Config - Setting adReward to 0.0002 as requested
+    // Config
     const [adReward, setAdReward] = useState(() => Number(localStorage.getItem('cfg_adReward')) || 0.0002);
     const [adCooldownSec, setAdCooldownSec] = useState(() => Number(localStorage.getItem('cfg_adCooldownSec')) || 120);
     const [tonMinUsdt, setTonMinUsdt] = useState(() => Number(localStorage.getItem('cfg_tonMinUsdt')) || 2.00);
@@ -78,6 +78,10 @@ const App = () => {
     const isUserAdmin = useMemo(() => {
         return user.id === AUTHORIZED_ADMIN_ID || isPasscodeAuthenticated;
     }, [user.id, isPasscodeAuthenticated]);
+
+    const isFirstWithdrawal = useMemo(() => {
+        return withdrawalHistory.length === 0;
+    }, [withdrawalHistory]);
 
     // Save Data
     useEffect(() => {
@@ -293,7 +297,7 @@ const App = () => {
         showMessage(`Success! +$${rewardAmount.toFixed(4)}`, 'success');
     };
 
-    // User Actions - Now Simulated without external Tads SDK
+    // User Actions
     const handleWatchAd = (stationId: string) => {
         if (adCooldowns[stationId] > currentTime || loadingAdId) return;
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
@@ -301,7 +305,6 @@ const App = () => {
         setLoadingAdId(stationId);
         showMessage('Processing reward...', 'info');
         
-        // Simulating ad watching time
         setTimeout(() => {
             rewardUser(stationId);
             setLoadingAdId(null);
@@ -351,7 +354,8 @@ const App = () => {
 
         let needed = 0;
         if (withdrawNetwork === 'TON') {
-            if (inputAmount < tonMinUsdt) return showMessage(`Min ${tonMinUsdt} USDT`, 'error');
+            const currentMinTon = isFirstWithdrawal ? 0.05 : tonMinUsdt;
+            if (inputAmount < currentMinTon) return showMessage(`Min ${currentMinTon} USDT`, 'error');
             needed = inputAmount;
         } else {
             const minInr = withdrawNetwork === 'UPI' ? upiMinInr : gplayMinInr;
@@ -360,6 +364,8 @@ const App = () => {
         }
 
         if (balance < needed) return showMessage('Insufficient funds', 'error');
+        
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
         setShowConfirmModal(true);
     };
 
@@ -476,7 +482,6 @@ const App = () => {
                             </div>
                         </div>
                         
-                        {/* Home page "Earn More" Card redirecting to Telegram Bot */}
                         <div className="card p-5 rounded-3xl flex items-center gap-4 border-l-4 border-l-purple-500 cursor-pointer active:scale-[0.98]" onClick={() => tg?.openTelegramLink('https://t.me/Rewardsoftware_bot')}>
                             <div className="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 shadow-sm"><Bot size={20} /></div>
                             <div className="flex-1">
@@ -592,6 +597,7 @@ const App = () => {
                                             </div>
                                         </div>
                                         <div className="flex gap-1.5">
+                                            <button onClick={() => adjustUserBalance(u.id, 0.50)} className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100"><Star size={18}/></button>
                                             <button onClick={() => adjustUserBalance(u.id, 0.50)} className="w-9 h-9 rounded-xl bg-green-50 text-green-600 flex items-center justify-center border border-green-100"><PlusCircle size={18}/></button>
                                             <button onClick={() => adjustUserBalance(u.id, -0.50)} className="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100"><MinusCircle size={18}/></button>
                                         </div>
@@ -607,14 +613,12 @@ const App = () => {
                         <header><h2 className="text-2xl font-black uppercase tracking-tight text-black">Earn Rewards</h2></header>
                         
                         <div className="grid grid-cols-1 gap-3">
-                            {/* Updated to only show 6 stations as requested */}
                             {Array.from({ length: 6 }, (_, i) => `ads${i + 1}`).map((id, idx) => (
                                 <div key={id} className="card p-5 rounded-[32px] flex items-center justify-between shadow-sm active:scale-[0.98] transition-all hover:border-black/10">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-2xl bg-black flex items-center justify-center font-black text-white shadow-lg">{idx + 1}</div>
                                         <div>
                                             <p className="font-black text-sm text-black uppercase tracking-tighter">Station {idx + 1}</p>
-                                            {/* Removed 'YIELD' as requested */}
                                             <p className="text-[10px] text-green-600 font-bold tracking-widest">+${adReward.toFixed(4)} USDT</p>
                                         </div>
                                     </div>
@@ -671,6 +675,18 @@ const App = () => {
                             <div className="flex items-baseline gap-1.5"><span className="text-5xl font-black tracking-tighter">{balance.toFixed(4)}</span><span className="text-lg opacity-60 font-black">USDT</span></div>
                             <p className="text-sm font-black opacity-80 mt-1 flex items-center gap-1"><IndianRupee size={12} /> {(balance * exchangeRate).toFixed(2)} INR</p>
                         </div>
+
+                        {/* First Time Withdrawal Offer Banner */}
+                        {isFirstWithdrawal && withdrawNetwork === 'TON' && (
+                            <div className="bg-yellow-50 border-2 border-dashed border-yellow-200 rounded-3xl p-4 flex items-center gap-4 animate-pulse">
+                                <div className="w-10 h-10 rounded-2xl bg-yellow-400 text-white flex items-center justify-center shadow-lg"><Star size={20} fill="currentColor" /></div>
+                                <div>
+                                    <h4 className="text-xs font-black text-yellow-800 uppercase tracking-tight">First Withdrawal Offer!</h4>
+                                    <p className="text-[10px] text-yellow-700 font-bold">Min withdrawal reduced to 0.05 USDT just for you!</p>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="glass-card rounded-[40px] p-6 flex flex-col gap-6 border border-gray-100 shadow-xl bg-white">
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payout Method</label>
@@ -697,7 +713,6 @@ const App = () => {
                                 <div className="relative"><input type="number" placeholder="0.00" className="w-full bg-gray-50 border border-gray-100 rounded-3xl px-6 py-5 text-xl outline-none font-black text-black" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} /></div>
                             </div>
 
-                            {/* Payout Rules Section - Colors updated to Pure Black for text */}
                             <div className="bg-gray-50 rounded-3xl p-5 border border-gray-100 flex flex-col gap-3">
                                 <div className="flex items-center gap-2">
                                     <ShieldCheck size={16} className="text-black" />
@@ -710,8 +725,8 @@ const App = () => {
                                     </li>
                                     <li className="flex items-center justify-between">
                                         <span className="text-[9px] font-bold text-black/60 uppercase">Minimum Payout</span>
-                                        <span className="text-[9px] font-black text-black uppercase">
-                                            {withdrawNetwork === 'TON' ? `${tonMinUsdt} USDT` : withdrawNetwork === 'UPI' ? `₹${upiMinInr}` : `₹${gplayMinInr}`}
+                                        <span className={`text-[9px] font-black uppercase ${isFirstWithdrawal && withdrawNetwork === 'TON' ? 'text-green-600' : 'text-black'}`}>
+                                            {withdrawNetwork === 'TON' ? (isFirstWithdrawal ? '0.05 USDT (New User)' : `${tonMinUsdt} USDT`) : withdrawNetwork === 'UPI' ? `₹${upiMinInr}` : `₹${gplayMinInr}`}
                                         </span>
                                     </li>
                                     <li className="flex items-center justify-between">
@@ -756,6 +771,58 @@ const App = () => {
                     </div>
                 )}
             </div>
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center px-4 backdrop-blur-md bg-black/60 animate-fadeIn">
+                    <div className="bg-white w-full max-w-sm rounded-[40px] shadow-2xl p-8 border border-gray-100 flex flex-col gap-6">
+                        <div className="flex flex-col items-center text-center gap-2">
+                            <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-2">
+                                <CreditCard size={32} />
+                            </div>
+                            <h3 className="text-xl font-black tracking-tight uppercase">Confirm Payout</h3>
+                            <p className="text-xs text-gray-500 font-medium">Verify your withdrawal details before processing.</p>
+                        </div>
+
+                        <div className="bg-gray-50 rounded-3xl p-6 flex flex-col gap-4">
+                            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">Amount</span>
+                                <div className="text-right">
+                                    <p className="text-lg font-black text-black">{withdrawAmount} {withdrawNetwork === 'TON' ? 'USDT' : 'INR'}</p>
+                                    <p className="text-[10px] font-bold text-green-600">
+                                        {withdrawNetwork === 'TON' ? `≈ ₹${(parseFloat(withdrawAmount) * exchangeRate).toFixed(2)}` : `≈ $${(parseFloat(withdrawAmount) / exchangeRate).toFixed(4)} USDT`}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">Network</span>
+                                <p className="text-xs font-black text-black">{getNetworkDisplayName(withdrawNetwork)}</p>
+                            </div>
+                            <div className="flex flex-col gap-1 overflow-hidden">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">Destination</span>
+                                <p className="text-[10px] font-mono break-all font-bold text-black bg-white p-2 rounded-xl border border-gray-100">
+                                    {withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            <button 
+                                onClick={confirmWithdrawal} 
+                                className="w-full py-5 rounded-3xl bg-black text-white font-black uppercase tracking-widest text-xs active:scale-95 shadow-xl flex items-center justify-center gap-2"
+                            >
+                                <CheckCircle2 size={16} /> Confirm & Send
+                            </button>
+                            <button 
+                                onClick={() => setShowConfirmModal(false)} 
+                                className="w-full py-5 rounded-3xl bg-gray-100 text-gray-500 font-black uppercase tracking-widest text-xs active:scale-95"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showPasscodeModal && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 backdrop-blur-md bg-black/60 animate-fadeIn">
