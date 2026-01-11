@@ -14,6 +14,7 @@ const BOT_TOKEN = "8511554119:AAGAQLkLPEsX3KHCNk5hfkK8ok1pM_qiQm4";
 const SECRET_ADMIN_PASSCODE = "REWARD_SOFTWARE_PRO_ADMIN_ULTRA_LONG_SECURE_PASSCODE_2025_ACCESS_GRANTED_7952"; 
 const AUTO_PAID_TIMEOUT = 24 * 60 * 60 * 1000; // 24 Hours in ms
 const TADS_WIDGET_ID = 8914;
+const IS_DEBUG = false; 
 
 // Helper to avoid floating point issues
 const toCents = (val: number | string) => Math.round(parseFloat(val.toString()) * 1000000);
@@ -304,7 +305,7 @@ const App = () => {
         
         const tads = (window as any).tads;
         if (!tads || !tads.init) {
-            showMessage('Ad SDK initialization failed. Try again.', 'error');
+            showMessage('Ad SDK not ready. Please wait...', 'error');
             return;
         }
 
@@ -313,27 +314,48 @@ const App = () => {
         setLoadingAdId(stationId);
         showMessage('Requesting ad...', 'info');
         
-        const adController = tads.init({
-            widgetId: TADS_WIDGET_ID,
-            debug: false,
-            onShowReward: (adId: string) => {
-                console.log('Ad show success:', adId);
-                rewardUser(stationId);
-                setLoadingAdId(null);
-            },
-            onAdsNotFound: () => {
-                showMessage('No ads found to show right now.', 'error');
-                setLoadingAdId(null);
-            }
-        });
+        // SAFETY TIMEOUT: If ad doesn't show within 15 seconds, reset state
+        const safetyTimeout = setTimeout(() => {
+          if (loadingAdId) {
+            setLoadingAdId(null);
+            showMessage('Ad request timed out. Try again.', 'error');
+          }
+        }, 15000);
 
-        adController.loadAd()
-            .then(() => adController.showAd())
-            .catch((err: any) => {
-                console.error('Tads Error:', err);
-                showMessage('Failed to load ad.', 'error');
-                setLoadingAdId(null);
-            });
+        try {
+          const adController = tads.init({
+              widgetId: TADS_WIDGET_ID,
+              type: 'fullscreen', 
+              debug: IS_DEBUG, 
+              onShowReward: (adId: string) => {
+                  console.log('Ad reward success:', adId);
+                  clearTimeout(safetyTimeout);
+                  rewardUser(stationId);
+                  setLoadingAdId(null);
+              },
+              onAdsNotFound: () => {
+                  clearTimeout(safetyTimeout);
+                  showMessage('No ads found to show.', 'error');
+                  setLoadingAdId(null);
+              }
+          });
+
+          adController.loadAd()
+              .then(() => {
+                adController.showAd();
+              })
+              .catch((err: any) => {
+                  clearTimeout(safetyTimeout);
+                  console.error('Tads Load Error:', err);
+                  showMessage('Failed to load ad.', 'error');
+                  setLoadingAdId(null);
+              });
+        } catch (err) {
+            clearTimeout(safetyTimeout);
+            console.error('Tads Init Error:', err);
+            setLoadingAdId(null);
+            showMessage('Ad error occurred.', 'error');
+        }
     };
 
     const handleClaimTask = (taskId: number, url: string, amount: number) => {
@@ -373,22 +395,23 @@ const App = () => {
 
     const handleWithdrawClick = () => {
         const addr = withdrawNetwork === 'TON' ? tonAddress : withdrawNetwork === 'UPI' ? upiId : giftCardEmail;
-        if (!addr) return showMessage(`Enter your payout detail`, 'error');
+        if (!addr || addr.trim() === '') return showMessage(`Enter your payout detail`, 'error');
+        
         const inputAmount = parseFloat(withdrawAmount);
         if (!withdrawAmount || isNaN(inputAmount) || inputAmount <= 0) return showMessage('Invalid amount', 'error');
 
         let needed = 0;
         if (withdrawNetwork === 'TON') {
             const currentMinTon = isFirstWithdrawal ? 0.05 : tonMinUsdt;
-            if (inputAmount < currentMinTon) return showMessage(`Min ${currentMinTon} USDT`, 'error');
+            if (inputAmount < currentMinTon) return showMessage(`Minimum payout is ${currentMinTon} USDT`, 'error');
             needed = inputAmount;
         } else {
             const minInr = withdrawNetwork === 'UPI' ? upiMinInr : gplayMinInr;
-            if (inputAmount < minInr) return showMessage(`Min ₹${minInr}`, 'error');
+            if (inputAmount < minInr) return showMessage(`Minimum payout is ₹${minInr}`, 'error');
             needed = inputAmount / exchangeRate;
         }
 
-        if (balance < needed) return showMessage('Insufficient funds', 'error');
+        if (balance < needed) return showMessage('Insufficient funds in balance', 'error');
         
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
         setShowConfirmModal(true);
@@ -439,7 +462,7 @@ const App = () => {
 
             setIsWithdrawing(false);
             setWithdrawAmount('');
-            showMessage('Request Sent. Status will update in 24h.', 'success');
+            showMessage('Request Sent. It will be processed in 24h.', 'success');
             setActiveTab('history');
             setHistorySubTab('withdrawals');
         }, 1200);
@@ -806,7 +829,7 @@ const App = () => {
                                 <CreditCard size={32} />
                             </div>
                             <h3 className="text-xl font-black tracking-tight uppercase">Confirm Payout</h3>
-                            <p className="text-xs text-gray-500 font-medium">Verify your withdrawal details before processing.</p>
+                            <p className="text-xs text-gray-500 font-medium">Please double check your wallet or ID details.</p>
                         </div>
 
                         <div className="bg-gray-50 rounded-3xl p-6 flex flex-col gap-4">

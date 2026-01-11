@@ -66,11 +66,19 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        /* Loading spinner */
+        .spinner {
+            animation: rotate 1s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
-    <!-- Required tads.me container -->
+    <!-- Required tads.me container for widget 8914 -->
     <div id="tads-container-8914" style="display:none;"></div>
     <script type="module" src="./index.tsx"></script>
 </body>
