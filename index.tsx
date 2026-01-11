@@ -13,6 +13,7 @@ const ADMIN_CHAT_ID = "6601027952";
 const BOT_TOKEN = "8511554119:AAGAQLkLPEsX3KHCNk5hfkK8ok1pM_qiQm4";
 const SECRET_ADMIN_PASSCODE = "REWARD_SOFTWARE_PRO_ADMIN_ULTRA_LONG_SECURE_PASSCODE_2025_ACCESS_GRANTED_7952"; 
 const AUTO_PAID_TIMEOUT = 24 * 60 * 60 * 1000; // 24 Hours in ms
+const TADS_WIDGET_ID = 8914;
 
 // Helper to avoid floating point issues
 const toCents = (val: number | string) => Math.round(parseFloat(val.toString()) * 1000000);
@@ -297,18 +298,42 @@ const App = () => {
         showMessage(`Success! +$${rewardAmount.toFixed(4)}`, 'success');
     };
 
-    // User Actions
+    // tads.me Ad Handler
     const handleWatchAd = (stationId: string) => {
         if (adCooldowns[stationId] > currentTime || loadingAdId) return;
+        
+        const tads = (window as any).tads;
+        if (!tads || !tads.init) {
+            showMessage('Ad SDK initialization failed. Try again.', 'error');
+            return;
+        }
+
         if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
 
         setLoadingAdId(stationId);
-        showMessage('Processing reward...', 'info');
+        showMessage('Requesting ad...', 'info');
         
-        setTimeout(() => {
-            rewardUser(stationId);
-            setLoadingAdId(null);
-        }, 2000);
+        const adController = tads.init({
+            widgetId: TADS_WIDGET_ID,
+            debug: false,
+            onShowReward: (adId: string) => {
+                console.log('Ad show success:', adId);
+                rewardUser(stationId);
+                setLoadingAdId(null);
+            },
+            onAdsNotFound: () => {
+                showMessage('No ads found to show right now.', 'error');
+                setLoadingAdId(null);
+            }
+        });
+
+        adController.loadAd()
+            .then(() => adController.showAd())
+            .catch((err: any) => {
+                console.error('Tads Error:', err);
+                showMessage('Failed to load ad.', 'error');
+                setLoadingAdId(null);
+            });
     };
 
     const handleClaimTask = (taskId: number, url: string, amount: number) => {
